@@ -17,7 +17,7 @@ return (
 </div>
 <Outlet key={loc.pathname} />
 <footer className="container" style={{marginTop:24}}>
-<small>Built with React + Vite. Deployed on Fly.io.</small>
+<small>Built with love in Chicago, IL. By Stephen G.</small>
 </footer>
 </>
 )
