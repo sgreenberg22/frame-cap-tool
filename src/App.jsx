@@ -8,10 +8,6 @@ return (
 <>
 <div className="container">
 <header className="header">
-<h1 className="brand">FrameCapture</h1>
-<nav className="nav">
-<Link to="/">Home</Link>
-<Link to="/analysis">Analysis</Link>
 </nav>
 </header>
 </div>
