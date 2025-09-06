@@ -7,9 +7,6 @@ const loc = useLocation()
 return (
 <>
 <div className="container">
-<header className="header">
-</nav>
-</header>
 </div>
 <Outlet key={loc.pathname} />
 <footer className="container" style={{marginTop:24}}>
