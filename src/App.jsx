@@ -10,7 +10,7 @@ return (
 </div>
 <Outlet key={loc.pathname} />
 <footer className="container" style={{marginTop:24}}>
-<small>Built with love in Chicago, IL. By Stephen G.</small>
+<small>Built by Stephen G.</small>
 </footer>
 </>
 )
