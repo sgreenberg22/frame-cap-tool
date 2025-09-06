@@ -32,7 +32,7 @@ return (
 </header>
 <section className="card" style={{marginTop:16}}>
 <h2>Welcome</h2>
-<p>Upload a video, scrub it with speed & filter controls, and capture single or batch screenshots—then edit and download.</p>
+<p>Upload a video, scrub it with speed & filter controls, and capture single or batch screenshots—then edit and download. You can also create GIFs using the screenshots you've edited.</p>
 <Link to="/analysis" className="btn">Open Analysis</Link>
 </section>
 </div>
