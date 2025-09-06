@@ -27,7 +27,6 @@ return (
 <h1 className="brand">FrameCapture</h1>
 <nav className="nav">
 <Link to="/analysis">Analysis</Link>
-<a href="https://fly.io/docs/" target="_blank" rel="noreferrer">Fly Docs</a>
 </nav>
 </header>
 <section className="card" style={{marginTop:16}}>
