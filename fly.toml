@@ -1,0 +1,17 @@
+app = "framecapture-stephen-123"
+primary_region = "ord"
+
+
+[[services]]
+protocol = "tcp"
+internal_port = 80
+
+
+[[services.ports]]
+port = 80
+handlers = ["http"]
+
+
+[[services.ports]]
+port = 443
+handlers = ["tls", "http"]
