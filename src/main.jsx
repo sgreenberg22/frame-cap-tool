@@ -24,7 +24,7 @@ function Home(){
 return (
 <div className="container">
 <header className="header">
-<h1 className="brand">FrameCapture</h1>
+<h1 className="brand">Frame Capture and GIF Maker</h1>
 <nav className="nav">
 <Link to="/analysis">Analysis</Link>
 </nav>
