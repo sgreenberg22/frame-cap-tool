@@ -81,6 +81,9 @@ export default function Analysis(){
 
   return (
     <div className="container">
+      <div className="container">
+  <Link to="/">Home</Link>
+</div>
       <section className="grid">
         <div className="card">
           <details open>
