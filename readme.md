@@ -98,3 +98,4 @@ Current Chrome, Edge, Firefox and Safari 16.4+. Optional features degrade gracef
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 - [Security](SECURITY.md)
+- [Improvement report](docs/IMPROVEMENTS.md)
