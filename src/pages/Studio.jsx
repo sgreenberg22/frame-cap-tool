@@ -18,7 +18,7 @@ import { useT } from '../lib/i18n'
 import { DEFAULT_FPS, LIMITS } from '../lib/config'
 import { DEFAULT_FILTERS, autoLevelsFromHistogram, parseCube, whiteBalanceFrom, rgbToHex } from '../lib/filters'
 import { planBatch, sampleTimes } from '../lib/batch'
-import { renderCapture, seekVideo, drawLabel } from '../lib/capture'
+import { renderCapture, seekVideo, drawLabel, getWatermarkImage } from '../lib/capture'
 import { detectBars, histogram, sharpness, signature, signatureDiff } from '../lib/analysis'
 import { computePeaks, decodeImageFrames, generateSampleVideo, measureFps, subtitleFileToUrl, canRecordCanvas } from '../lib/media'
 import { db, ls, formatBytes, storageEstimate } from '../lib/storage'
@@ -109,6 +109,7 @@ export default function Studio() {
   const nowTime = useCallback(() => playerRef.current?.video?.()?.currentTime ?? time, [time])
 
   useEffect(() => ls.set('fc.overlays', overlays), [overlays])
+  useEffect(() => void getWatermarkImage(settings.watermarkImage), [settings.watermarkImage])
   useEffect(() => ls.set('fc.batch', batch), [batch])
   useEffect(() => ls.set('fc.panel', panel), [panel])
   useEffect(() => ls.set('fc.split', splitPct), [splitPct])
@@ -451,7 +452,13 @@ export default function Studio() {
         scale,
         time: el.currentTime,
         burn: { enabled: s.burnTimestamp, position: s.burnPosition, size: s.burnSize, color: s.burnColor },
-        watermark: { text: s.watermarkText, opacity: s.watermarkOpacity, position: s.watermarkPosition },
+        watermark: {
+          text: s.watermarkText,
+          image: s.watermarkImage,
+          imageScale: s.watermarkImageScale,
+          opacity: s.watermarkOpacity,
+          position: s.watermarkPosition,
+        },
         ...extra,
       })
     },
@@ -1310,6 +1317,11 @@ export default function Studio() {
                   comparing={!!compare}
                   stopCompare={() => setCompare(null)}
                   onZoomReset={() => playerRef.current?.resetView()}
+                  onActualPixels={() => {
+                    const el = playerRef.current?.video?.()
+                    const fw = playerRef.current?.stage?.()?.querySelector('.frame')?.offsetWidth
+                    if (el?.videoWidth && fw) playerRef.current.setZoom(el.videoWidth / (fw * (window.devicePixelRatio || 1)))
+                  }}
                   showScopes={showScopes}
                   setShowScopes={setShowScopes}
                   disabled={!source}

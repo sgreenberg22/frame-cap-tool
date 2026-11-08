@@ -4,6 +4,8 @@ import { LIMITS } from '../lib/config'
 import { planBatch, toInt } from '../lib/batch'
 import { formatClock } from '../lib/timecode'
 import { useApp } from '../state/store'
+import { formatBytes } from '../lib/storage'
+import { getWatermarkImage } from '../lib/capture'
 
 const MODES = [
   ['interval', 'Every N ms'],
@@ -31,7 +33,25 @@ export default function CapturePanel({
   live,
   disabled,
 }) {
-  const { settings, setSettings } = useApp()
+  const { settings, setSettings, shots, toast } = useApp()
+  const last = shots.reduce((a, b) => (!a || b.seq > a.seq ? b : a), null)
+
+  async function pickLogo(file) {
+    if (!file) return
+    try {
+      const bmp = await createImageBitmap(file)
+      const s = Math.min(1, 512 / Math.max(bmp.width, bmp.height))
+      const c = document.createElement('canvas')
+      c.width = Math.round(bmp.width * s)
+      c.height = Math.round(bmp.height * s)
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height)
+      const url = c.toDataURL('image/png')
+      getWatermarkImage(url)
+      setSettings({ watermarkImage: url })
+    } catch (e) {
+      toast(`Could not use that image: ${e.message}`, { kind: 'error' })
+    }
+  }
   const s = settings
   const errors = {
     count: !(batch.count >= 1 && batch.count <= LIMITS.batchMaxCount),
@@ -76,6 +96,11 @@ export default function CapturePanel({
             def={92}
             onChange={(v) => setSettings({ imageQuality: v / 100 })}
           />
+        )}
+        {last && (
+          <p className="muted small" aria-live="polite">
+            Last frame: {last.width}×{last.height} · {formatBytes(last.size)} ({last.type.replace('image/', '').toUpperCase()})
+          </p>
         )}
         {s.captureScale === 'custom' && (
           <Slider
@@ -133,7 +158,32 @@ export default function CapturePanel({
             maxLength={80}
           />
         </label>
-        {s.watermarkText && (
+        <div className="row wrap gap-s">
+          <label className="btn secondary sm file">
+            {s.watermarkImage ? 'Replace logo' : 'Add logo image'}
+            <input type="file" accept="image/png,image/svg+xml,image/webp,image/jpeg" onChange={(e) => pickLogo(e.target.files?.[0])} />
+          </label>
+          {s.watermarkImage && (
+            <>
+              <img src={s.watermarkImage} alt="Watermark logo" style={{ height: 32, borderRadius: 4, background: '#0002' }} />
+              <button className="btn secondary sm" onClick={() => setSettings({ watermarkImage: '' })}>
+                Remove logo
+              </button>
+            </>
+          )}
+        </div>
+        {s.watermarkImage && (
+          <Slider
+            label="Logo size"
+            value={Math.round(s.watermarkImageScale * 100)}
+            min={5}
+            max={60}
+            unit="%"
+            def={18}
+            onChange={(v) => setSettings({ watermarkImageScale: v / 100 })}
+          />
+        )}
+        {(s.watermarkText || s.watermarkImage) && (
           <div className="grid2">
             <label className="field">
               Position

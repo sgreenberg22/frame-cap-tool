@@ -37,6 +37,8 @@ export const DEFAULT_SETTINGS = {
   watermarkText: '',
   watermarkOpacity: 0.5,
   watermarkPosition: 'bottom-left',
+  watermarkImage: '',
+  watermarkImageScale: 0.18,
   shutterSound: false,
   flash: true,
   haptics: true,

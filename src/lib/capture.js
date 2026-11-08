@@ -134,6 +134,8 @@ export function renderCapture(src, opts = {}) {
       color: opts.burn.color,
     })
   }
+  const wmImg = opts.watermark?.image ? getWatermarkImage(opts.watermark.image) : null
+  if (wmImg) drawImageMark(ctx, wmImg, { position: opts.watermark.position, opacity: opts.watermark.opacity ?? 0.5, scale: opts.watermark.imageScale ?? 0.18 })
   if (opts.watermark?.text) {
     drawLabel(ctx, opts.watermark.text, {
       position: opts.watermark.position,
@@ -146,6 +148,34 @@ export function renderCapture(src, opts = {}) {
     drawLabel(ctx, opts.caption, { position: 'center', size: Math.max(12, Math.round(28 * unit)) })
   }
   return out
+}
+
+const wmCache = new Map()
+/** Cached watermark image; returns null until it has loaded (call early to preload). */
+export function getWatermarkImage(url) {
+  if (!url) return null
+  let e = wmCache.get(url)
+  if (!e) {
+    e = { img: new Image(), ready: false }
+    e.img.onload = () => (e.ready = true)
+    e.img.src = url
+    wmCache.set(url, e)
+  }
+  return e.ready ? e.img : null
+}
+
+export function drawImageMark(ctx, img, { position = 'bottom-left', opacity = 0.5, scale = 0.18 }) {
+  const { width: W, height: H } = ctx.canvas
+  const w = Math.max(16, W * scale)
+  const h = (w * img.height) / img.width
+  const pad = Math.round(Math.min(W, H) * 0.03)
+  const [px, py] = POS[position] || POS['bottom-left']
+  const x = px === 0 ? pad : px === 1 ? W - w - pad : (W - w) / 2
+  const y = py === 0 ? pad : py === 1 ? H - h - pad : (H - h) / 2
+  ctx.save()
+  ctx.globalAlpha = opacity
+  ctx.drawImage(img, x, y, w, h)
+  ctx.restore()
 }
 
 export function canvasToBlob(canvas, type = 'image/png', quality = 0.92) {

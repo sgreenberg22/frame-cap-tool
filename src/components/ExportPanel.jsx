@@ -51,6 +51,7 @@ const DEFAULT_OPTS = {
   format: 'gif',
   targetMB: 0,
   allowUpscale: false,
+  burnCaptions: false,
 }
 const uid = () => Math.random().toString(36).slice(2, 10)
 const parseAspect = (a) =>
@@ -159,7 +160,10 @@ export default function ExportPanel({ videoRef, captureCanvas, selected, range, 
           const d = await blobToDrawable(items[i].blob)
           size = size || outputSize(d.width, d.height)
           if (i === 0 && (o.width || 0) > d.width && !o.allowUpscale) setWarn(`Width limited to the source width (${d.width}px) to avoid upscaling.`)
-          list.push({ id: uid(), canvas: fitInto(d, size.w, size.h), delay: items[i].delay || Math.round(1000 / o.fps), label: formatClock(items[i].time) })
+          const fitted = fitInto(d, size.w, size.h)
+          if (o.burnCaptions && items[i].caption)
+            drawLabel(fitted.getContext('2d'), items[i].caption, { position: 'bottom-right', size: Math.max(10, Math.round(size.w / 28)) })
+          list.push({ id: uid(), canvas: fitted, delay: items[i].delay || Math.round(1000 / o.fps), label: formatClock(items[i].time) })
           d.close?.()
           setStatus({ busy: true, p: (i + 1) / items.length, label: `Loading ${i + 1}/${items.length}` })
         }
@@ -552,6 +556,11 @@ export default function ExportPanel({ videoRef, captureCanvas, selected, range, 
             <label className="inline check">
               <input type="checkbox" checked={o.allowUpscale} onChange={(e) => set({ allowUpscale: e.target.checked })} /> Allow upscaling beyond the source
             </label>
+            {o.source !== 'video' && (
+              <label className="inline check">
+                <input type="checkbox" checked={o.burnCaptions} onChange={(e) => set({ burnCaptions: e.target.checked })} /> Burn in frame captions
+              </label>
+            )}
             <div className="row gap-s">
               <button className="btn" onClick={loadFrames} disabled={status.busy}>
                 Load frames

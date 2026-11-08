@@ -28,6 +28,7 @@ export default function ViewPanel({
   comparing,
   stopCompare,
   onZoomReset,
+  onActualPixels,
   showScopes,
   setShowScopes,
   disabled,
@@ -81,6 +82,9 @@ export default function ViewPanel({
           </button>
           <button className="btn secondary sm" onClick={onZoomReset} title="Reset zoom (0)">
             Fit view
+          </button>
+          <button className="btn secondary sm" onClick={onActualPixels} title="Show the video at 1:1 pixels">
+            100% pixels
           </button>
         </div>
         <div className="row wrap gap-s">
