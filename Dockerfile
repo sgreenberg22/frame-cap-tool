@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ---- Build stage ----
-FROM node:22.11-alpine AS build
+FROM node:26.12-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
