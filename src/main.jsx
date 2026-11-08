@@ -1,40 +1,58 @@
-import React from 'react'
+import React, { lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App'
-import Analysis from './pages/Analysis'
+import Home from './pages/Home'
+import { AppProvider } from './state/store'
 import './styles.css'
 
+const Studio = lazy(() => import('./pages/Studio'))
+const Help = lazy(() => import('./pages/Help'))
+const Settings = lazy(() => import('./pages/Settings'))
+const About = lazy(() => import('./pages/About'))
+const Privacy = lazy(() => import('./pages/Privacy'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+
+const Loading = () => (
+  <main id="main" className="container">
+    <div className="skeleton" style={{ height: 360, marginTop: 16 }} aria-label="Loading" />
+  </main>
+)
 
 createRoot(document.getElementById('root')).render(
-<React.StrictMode>
-<BrowserRouter>
-<Routes>
-<Route element={<App />}>
-<Route path="/" element={<Home />} />
-<Route path="/analysis" element={<Analysis />} />
-</Route>
-</Routes>
-</BrowserRouter>
-</React.StrictMode>
+  <React.StrictMode>
+    <AppProvider>
+      <BrowserRouter>
+        <Suspense fallback={<Loading />}>
+          <Routes>
+            <Route element={<App />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/studio" element={<Studio />} />
+              <Route path="/analysis" element={<Studio />} />
+              <Route path="/help" element={<Help />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </AppProvider>
+  </React.StrictMode>,
 )
 
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
+}
 
-function Home(){
-return (
-<div className="container">
-<header className="header">
-<h1 className="brand">Frame Capture and GIF Maker</h1>
-<nav className="nav">
-<Link to="/analysis">Analysis</Link>
-</nav>
-</header>
-<section className="card" style={{marginTop:16}}>
-<h2>Welcome</h2>
-<h3>All processing takes places locally on your browser. None of the videos, images, and GIFs you create are stored online. </h3>
-<p>Upload a video, scrub it with speed & filter controls, and capture single or batch screenshots—then edit and download. You can also create GIFs using the screenshots you've edited.</p>
-<Link to="/analysis" className="btn">Open Analysis</Link>
-</section>
-</div>
-)
+if (import.meta.env.DEV) {
+  // Dev-only performance logging (never shipped to production builds)
+  try {
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) console.debug(`[perf] ${e.entryType} ${e.name || ''} ${Math.round(e.startTime + (e.duration || 0))}ms`)
+    }).observe({ entryTypes: ['largest-contentful-paint', 'longtask'] })
+  } catch {
+    /* unsupported */
+  }
 }

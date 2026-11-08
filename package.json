@@ -6,19 +6,50 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --port 4173"
+    "preview": "vite preview --port 4173",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "size": "node scripts/check-size.mjs",
+    "e2e": "node e2e/smoke.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "prepare": "husky || true"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
+    "gifenc": "^1.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2",
-    "gifenc": "^1.0.0"
+    "react-router-dom": "^6.26.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.3",
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "husky": "^9.1.7",
+    "jsdom": "^25.0.1",
+    "lint-staged": "^15.5.2",
+    "playwright": "^1.63.0",
+    "prettier": "^3.9.10",
     "vite": "^5.4.2",
-    "@vitejs/plugin-react": "^4.3.1"
+    "vitest": "^2.1.9"
   },
   "engines": {
     "node": ">=20"
+  },
+  "lint-staged": {
+    "*.{js,jsx,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,json,md,html}": [
+      "prettier --write"
+    ]
   }
 }

@@ -1,0 +1,20 @@
+{
+  "name": "FrameCapture: frame grabber and GIF maker",
+  "short_name": "FrameCapture",
+  "description": "Capture frames from videos, annotate them and make GIFs. Runs locally in your browser.",
+  "start_url": "/studio",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFF7F0",
+  "theme_color": "#FF8A3D",
+  "categories": ["photo", "productivity", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "file_handlers": [
+    { "action": "/studio", "accept": { "video/*": [".mp4", ".webm", ".mov", ".m4v"] } }
+  ]
+}
