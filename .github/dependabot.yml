@@ -4,7 +4,13 @@ updates:
     directory: /
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    # Major upgrades (React 19, Router 7, Vite 6+...) need code changes; do them deliberately.
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     groups:
+      react:
+        patterns: ['react', 'react-dom', 'react-router-dom']
       dev-tooling:
         dependency-type: development
   - package-ecosystem: github-actions
@@ -13,3 +19,6 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule: { interval: monthly }
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
