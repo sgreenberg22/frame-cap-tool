@@ -20,8 +20,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -35,8 +35,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -50,21 +50,31 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: superfly/flyctl-actions/setup-flyctl@1.6
       - name: Deploy to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::warning title=Deploy skipped::Add a FLY_API_TOKEN repository secret (fly tokens create deploy) to enable deploys."
+            exit 0
+          fi
+          flyctl deploy --remote-only
 
   deploy-staging:
     needs: build
     if: github.event_name == 'workflow_dispatch' && inputs.target == 'staging'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: superfly/flyctl-actions/setup-flyctl@1.6
       - name: Deploy staging to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --config fly.staging.toml
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::warning title=Deploy skipped::Add a FLY_API_TOKEN repository secret (fly tokens create deploy) to enable deploys."
+            exit 0
+          fi
+          flyctl deploy --remote-only --config fly.staging.toml

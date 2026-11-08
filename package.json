@@ -1,6 +1,6 @@
 {
   "name": "framecapture",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -51,5 +51,7 @@
     "*.{css,json,md,html}": [
       "prettier --write"
     ]
-  }
+  },
+  "license": "MIT",
+  "description": "Private, in-browser video frame grabber, annotator and GIF maker"
 }

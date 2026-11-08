@@ -1,0 +1,18 @@
+name: Bug report
+description: Something is broken
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes: { label: What happened?, description: Steps to reproduce and what you expected. }
+    validations: { required: true }
+  - type: input
+    id: browser
+    attributes: { label: Browser and OS, placeholder: "Chrome 131 on macOS 15" }
+    validations: { required: true }
+  - type: input
+    id: video
+    attributes: { label: Video format (if relevant), placeholder: "MP4 H.264 1080p, 30 fps" }
+  - type: textarea
+    id: log
+    attributes: { label: Error log, description: "Settings → Error reporting → copy the log (it never contains your media).", render: text }
