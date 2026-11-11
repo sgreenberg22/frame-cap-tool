@@ -4,12 +4,17 @@ import { useT } from '../lib/i18n'
 import { useApp } from '../state/store'
 
 const FEATURES = [
-  ['🎞️', 'Frame-accurate scrubbing', 'Step frame by frame, A-B loop, markers, speed from 0.05× to 16×, timecodes and hover previews.'],
+  ['✂️', 'Edit video', 'Split, trim, cut and reorder clips, change speed, add titles and fades, then export MP4 or WebM with sound, up to 4K.'],
   ['🎨', 'GPU color grading', 'Exposure, curves, levels, temperature, LUTs, chroma key and analysis views like false color and zebras.'],
-  ['📸', 'Smart capture', 'Single, burst and batch capture: intervals, frame counts, scene changes, the sharpest frame, or on loud audio.'],
-  ['✏️', 'Annotate', 'Arrows, shapes, text, numbered steps, highlighter, redaction and spotlight, with undo and layers that stay editable.'],
-  ['🌀', 'GIF, APNG and video', 'Shared palettes, dithering, ping-pong, captions, crossfades, size targets, sprite sheets and WebM/MP4.'],
-  ['🔒', 'Private by design', 'No uploads, accounts or analytics. Works offline once loaded, and your frames stay in this browser.'],
+  ['📸', 'Smart capture', 'Single, burst and batch capture. Auto-pick the sharpest and best frames, or stack frames into a clean, noise-free still.'],
+  [
+    '✨',
+    'Enhance and upscale',
+    'One-click auto enhance, denoise, sharpen, clarity, dehaze and low-light boost. Upscale 2× or 4×, instantly or with an AI model.',
+  ],
+  ['🖌️', 'Pro photo editor', 'Layers with blend modes, clone stamp, magic eraser, curves, text, arrows, redaction, crops and full undo history.'],
+  ['🌀', 'GIF, APNG and more', 'Shared palettes, dithering, ping-pong, captions, crossfades, size targets, sprite sheets and looping video.'],
+  ['🔒', 'Private by design', 'No uploads, accounts or analytics. Even the AI upscaler runs on your own device. Works offline once loaded.'],
 ]
 
 export default function Home() {

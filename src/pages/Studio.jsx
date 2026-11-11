@@ -8,6 +8,10 @@ import ViewPanel from '../components/ViewPanel'
 import VideoInfo from '../components/VideoInfo'
 import Scopes from '../components/Scopes'
 import Gallery from '../components/Gallery'
+import ClipsPanel from '../components/ClipsPanel'
+import { clipAt, defaultClips, isEdited, splitAt } from '../lib/clips'
+import { activeTitles } from '../lib/titles'
+import { enhanceCanvas, stackCanvases } from '../lib/enhanceClient'
 import Modal from '../components/Modal'
 import ShortcutsHelp from '../components/ShortcutsHelp'
 import Tour from '../components/Tour'
@@ -27,6 +31,7 @@ import { shutterSound, haptic } from '../lib/feedback'
 
 const EditorModal = lazy(() => import('../components/editor/EditorModal'))
 const ExportPanel = lazy(() => import('../components/ExportPanel'))
+const ExportVideoPanel = lazy(() => import('../components/ExportVideoPanel'))
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 const isTyping = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))
@@ -88,8 +93,11 @@ export default function Studio() {
   const [audioLevel, setAudioLevel] = useState(0)
   const [compare, setCompare] = useState(null)
   const [showScopes, setShowScopes] = useState(false)
-  const [panel, setPanel] = useState(() => ls.get('fc.panel', 'filters'))
+  const [panel, setPanel] = useState(() => ls.get('fc.panel', 'edit'))
   const [mobileTab, setMobileTab] = useState('video')
+  const [edits, setEdits] = useState({})
+  const [previewEdit, setPreviewEdit] = useState(true)
+  const seqIdx = useRef(0)
   const [dragOver, setDragOver] = useState(false)
   const [modal, setModal] = useState(null) // 'url' | 'shortcuts' | 'contact'
   const [editorId, setEditorId] = useState(null)
@@ -431,6 +439,50 @@ export default function Studio() {
     if (out && time >= out - 0.01) seek(range.in ?? 0)
   }, [time, loopRange, playing, range, duration, seek])
 
+  // ---------- Edit (cut list) ----------
+  const edit = useMemo(() => edits[activeId] || {}, [edits, activeId])
+  const setEdit = useCallback((upd) => setEdits((all) => ({ ...all, [activeId]: typeof upd === 'function' ? upd(all[activeId] || {}) : upd })), [activeId])
+  const editClips = edit.clips && isEdited(edit.clips, duration) ? edit.clips : null
+  const splitHere = useCallback(() => {
+    if (!duration || live) return
+    setEdit((e) => ({ ...e, clips: splitAt(e.clips || defaultClips(duration), nowTime()) }))
+  }, [duration, live, setEdit, nowTime])
+
+  // Preview the edit: skip removed parts, follow clip order and per-clip speed
+  useEffect(() => {
+    const el = playerRef.current?.video?.()
+    if (!el || !playing || !previewEdit || !editClips || loopRange) return
+    let i = seqIdx.current
+    let c = editClips[i]
+    if (!c || time < c.in - 0.08 || time > c.out + 0.08) {
+      const j = clipAt(editClips, time)
+      if (j >= 0) {
+        i = seqIdx.current = j
+        c = editClips[j]
+      } else {
+        // In a removed part: jump to the next kept clip, or stop at the end
+        const next = editClips
+          .map((x, k) => [x, k])
+          .filter(([x]) => x.in > time)
+          .sort((a, b) => a[0].in - b[0].in)[0]
+        if (next) {
+          seqIdx.current = next[1]
+          seek(next[0].in)
+        } else el.pause()
+        return
+      }
+    }
+    const rate = Math.min(16, Math.max(0.0625, c.speed * speed))
+    if (Math.abs(el.playbackRate - rate) > 0.001) el.playbackRate = rate
+    if (time >= c.out - 0.03) {
+      const next = editClips[i + 1]
+      if (next) {
+        seqIdx.current = i + 1
+        seek(next.in)
+      } else el.pause()
+    }
+  }, [time, playing, previewEdit, editClips, loopRange, speed, seek])
+
   // ---------- Capture ----------
   const captureCanvas = useCallback(
     (el, extra = {}) => {
@@ -471,14 +523,27 @@ export default function Studio() {
     if (settings.haptics) haptic()
   }, [settings.flash, settings.shutterSound, settings.haptics])
 
+  const postProcess = useCallback(
+    async (canvas) => {
+      const ops = []
+      if (settings.autoEnhance) ops.push({ op: 'autoEnhance' })
+      if (settings.captureUpscale === 'smart2') ops.push({ op: 'smartUpscale', scale: 2 })
+      if (settings.captureUpscale === 'ai2') ops.push({ op: 'aiUpscale', scale: 2 })
+      return ops.length ? enhanceCanvas(canvas, ops) : canvas
+    },
+    [settings.autoEnhance, settings.captureUpscale],
+  )
+
   const capture = useCallback(
     async ({ silent = false } = {}) => {
       const el = playerRef.current?.video?.()
       if (!el || !el.videoWidth) return toast('Load a video first', { kind: 'warn' })
       try {
-        const canvas = captureCanvas(el)
+        const raw = captureCanvas(el)
+        const at = el.currentTime
         feedback()
-        const [shot] = await addShotsFromCanvases([{ canvas, time: el.currentTime, video: source?.name, videoId: source?.id, filters }])
+        const canvas = await postProcess(raw)
+        const [shot] = await addShotsFromCanvases([{ canvas, time: at, video: source?.name, videoId: source?.id, filters }])
         if (!silent)
           toast(`Captured ${formatClock(shot.time)}`, { action: { label: 'Undo', fn: () => app.removeShots([shot.id], { undo: false }) }, timeout: 3000 })
         return shot
@@ -489,7 +554,7 @@ export default function Studio() {
         logError(e, 'capture')
       }
     },
-    [captureCanvas, feedback, addShotsFromCanvases, source, filters, toast, app, logError],
+    [captureCanvas, postProcess, feedback, addShotsFromCanvases, source, filters, toast, app, logError],
   )
 
   const runBatch = useCallback(async () => {
@@ -519,8 +584,9 @@ export default function Studio() {
         if (lastSig && signatureDiff(sig, lastSig) < batch.dupThreshold) return false
         lastSig = sig
       }
-      const canvas = captureCanvas(el)
-      await addShotsFromCanvases([{ canvas, time: tt ?? el.currentTime, video: source?.name, videoId: source?.id, filters }])
+      const at = tt ?? el.currentTime
+      const canvas = await postProcess(captureCanvas(el))
+      await addShotsFromCanvases([{ canvas, time: at, video: source?.name, videoId: source?.id, filters }])
       captured++
       return true
     }
@@ -546,6 +612,27 @@ export default function Studio() {
             await seekVideo(el, best.t)
             await take(best.t)
             toast(`Sharpest frame: ${formatClock(best.t)}`)
+          }
+        } else if (batch.mode === 'best') {
+          // Scan the range, then keep the sharpest frames that are spread out and visually different
+          const times = sampleTimes(rs, re, Math.min(fps, 180 / Math.max(0.1, re - rs)), el.duration)
+          const scan = []
+          for (let i = 0; i < times.length && !ctl.cancel; i++) {
+            await seekVideo(el, times[i])
+            scan.push({ t: times[i], s: sharpness(el), sig: signature(el, 32) })
+            report(i + 1, times.length + batch.count, `Scanning ${i + 1}/${times.length}`)
+          }
+          const minGap = (re - rs) / Math.max(2, batch.count * 2.5)
+          const picked = []
+          for (const c of [...scan].sort((a, b) => b.s - a.s)) {
+            if (picked.length >= batch.count) break
+            if (picked.every((p) => Math.abs(p.t - c.t) >= minGap && signatureDiff(p.sig, c.sig) > 1.5)) picked.push(c)
+          }
+          picked.sort((a, b) => a.t - b.t)
+          for (let i = 0; i < picked.length && !ctl.cancel; i++) {
+            await seekVideo(el, picked[i].t)
+            await take(picked[i].t)
+            report(times.length + i + 1, times.length + picked.length, `Capturing best ${i + 1}/${picked.length}`)
           }
         } else if (batch.mode === 'scene') {
           const stepS = Math.max(1 / fps, (re - rs) / 600)
@@ -582,7 +669,37 @@ export default function Studio() {
       ctl.cancel = false
       setBatchProgress(null)
     }
-  }, [range, batch, fps, live, captureCanvas, addShotsFromCanvases, source, filters, play, feedback, toast, logError])
+  }, [range, batch, fps, live, captureCanvas, postProcess, addShotsFromCanvases, source, filters, play, feedback, toast, logError])
+
+  async function cleanStill(radius = 2) {
+    const el = playerRef.current?.video?.()
+    if (!el?.videoWidth || live) return
+    const at = el.currentTime
+    const was = el.paused
+    el.pause()
+    try {
+      const frames = []
+      for (let k = -radius; k <= radius; k++) {
+        const tt = at + k / fps
+        if (tt < 0 || tt > el.duration) continue
+        setBatchProgress({ p: (k + radius) / (radius * 2 + 1), label: `Stacking frame ${k + radius + 1}/${radius * 2 + 1}` })
+        await seekVideo(el, tt)
+        frames.push(captureCanvas(el, { burn: { enabled: false }, watermark: null }))
+      }
+      await seekVideo(el, at)
+      const stacked = await postProcess(await stackCanvases(frames, 'median'))
+      await addShotsFromCanvases([
+        { canvas: stacked, time: at, video: source?.name, videoId: source?.id, filters, note: `Clean still (${frames.length} frames)` },
+      ])
+      feedback()
+      toast(`Clean still made from ${frames.length} frames`)
+    } catch (e) {
+      toast(`Could not stack frames: ${e.message}`, { kind: 'error' })
+    } finally {
+      setBatchProgress(null)
+      if (!was) play()
+    }
+  }
 
   async function makeContactSheet({ cols, rows, width, header }) {
     const el = playerRef.current?.video?.()
@@ -881,6 +998,11 @@ export default function Studio() {
         setLoopRange((x) => !x)
         return handled()
       }
+      if (k === 'c' || k === 'C') {
+        splitHere()
+        setPanel('edit')
+        return handled()
+      }
       if (k === 'm' || k === 'M') {
         addMarker()
         return handled()
@@ -927,7 +1049,7 @@ export default function Studio() {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [togglePlay, jump, step, setSpeed, speed, play, seek, duration, capture, runBatch, time, addMarker, jumpMarker, fullscreen, tool, nowTime])
+  }, [togglePlay, jump, step, setSpeed, speed, play, seek, duration, capture, runBatch, time, addMarker, jumpMarker, fullscreen, tool, nowTime, splitHere])
 
   const onGesture = useCallback(
     (g, amount) => {
@@ -960,11 +1082,20 @@ export default function Studio() {
   }
 
   const panelTabs = [
-    ['filters', 'Filters'],
-    ['capture', 'Capture & batch'],
+    ['edit', 'Cut & edit'],
+    ['filters', 'Color'],
+    ['capture', 'Capture'],
     ['view', 'View & tools'],
+    ['exportVideo', 'Export video'],
     ['info', 'Info'],
   ]
+  const workspaces = [
+    ['video', 'Video', 'Cut, grade and capture'],
+    ['frames', `Frames${shots.length ? ` (${shots.length})` : ''}`, 'Enhance, upscale and edit stills'],
+    ['export', 'Animate', 'GIF, APNG, video loops, sprites'],
+  ]
+  const recentShots = shots.slice(-8).reverse()
+  const shownTitles = activeTitles(edit.titles, time)
 
   return (
     <main id="main" className="studio" data-tab={mobileTab}>
@@ -1062,7 +1193,33 @@ export default function Studio() {
         </div>
       </div>
 
-      <div className="studio-grid" style={{ '--split': `${splitPct}%` }}>
+      <nav className="workspace-bar" aria-label="Workflow">
+        {workspaces.map(([id, label, hint], i) => (
+          <React.Fragment key={id}>
+            {i > 0 && (
+              <span className="ws-arrow" aria-hidden="true">
+                →
+              </span>
+            )}
+            <button
+              className={`ws-step ${mobileTab === id ? 'on' : ''}`}
+              aria-current={mobileTab === id ? 'step' : undefined}
+              onClick={() => setMobileTab(id)}
+              title={`${hint} (${i + 1})`}
+            >
+              <span className="ws-n" aria-hidden="true">
+                {i + 1}
+              </span>
+              <span className="ws-text">
+                <strong>{label}</strong>
+                <small>{hint}</small>
+              </span>
+            </button>
+          </React.Fragment>
+        ))}
+      </nav>
+
+      <div className="studio-grid ws ws-video" style={{ '--split': `${splitPct}%` }}>
         <section className="col-player" aria-label="Video">
           <div className="card player-card">
             <div className="player-wrap">
@@ -1093,6 +1250,7 @@ export default function Studio() {
                   onVideoEvent={onVideoEvent}
                   onVideoError={onVideoError}
                   flashKey={flashKey}
+                  titles={shownTitles}
                 />
               </ErrorBoundary>
               {!source && (
@@ -1154,6 +1312,8 @@ export default function Studio() {
                   onSeek={seek}
                   previewSrc={source.kind === 'file' ? source.url : null}
                   onMarkerClick={(m) => seek(m.time)}
+                  clips={editClips}
+                  titles={edit.titles}
                 />
                 {sourceMarkers.length > 0 && (
                   <div className="markers" aria-label="Markers">
@@ -1240,6 +1400,42 @@ export default function Studio() {
             {showScopes && source && <Scopes getSource={getScopeSource} />}
           </div>
 
+          <div className="card recent-card" aria-label="Recent frames">
+            <div className="row between">
+              <strong>Recent frames</strong>
+              <button className="btn secondary sm" onClick={() => setMobileTab('frames')}>
+                {shots.length ? `Open all ${shots.length} frames →` : 'Frames →'}
+              </button>
+            </div>
+            {recentShots.length ? (
+              <div className="recent-strip">
+                {recentShots.map((s) => (
+                  <button key={s.id} className="recent-thumb" onClick={() => setEditorId(s.id)} title={`Edit frame at ${formatClock(s.time)}`}>
+                    <img src={s.thumbUrl || s.url} alt={`Frame at ${formatClock(s.time)}`} loading="lazy" />
+                    <span>{formatClock(s.time, { ms: false })}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="muted small">Captured frames appear here. Press S to grab the current frame, then click it to edit, enhance or upscale it.</p>
+            )}
+          </div>
+        </section>
+
+        <div
+          className="resizer hide-sm"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize panels"
+          tabIndex={0}
+          onPointerDown={startResize}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft') setSplitPct((p) => Math.max(40, p - 2))
+            if (e.key === 'ArrowRight') setSplitPct((p) => Math.min(75, p + 2))
+          }}
+        />
+
+        <aside className="col-side" aria-label="Inspector">
           <div className="card panel-card">
             <div className="tabs" role="tablist" aria-label="Studio panels">
               {panelTabs.map(([id, label]) => (
@@ -1257,6 +1453,40 @@ export default function Studio() {
               ))}
             </div>
             <div role="tabpanel" id={`panel-${panel}`} aria-labelledby={`tab-${panel}`} className="tabpanel">
+              {panel === 'edit' && (
+                <ClipsPanel
+                  edit={edit}
+                  setEdit={setEdit}
+                  duration={duration}
+                  time={time}
+                  range={range}
+                  previewEdit={previewEdit}
+                  setPreviewEdit={setPreviewEdit}
+                  onSeek={seek}
+                  onExport={() => setPanel('exportVideo')}
+                  disabled={!source || !duration}
+                  live={live}
+                />
+              )}
+              {panel === 'exportVideo' && (
+                <Suspense fallback={<div className="skeleton" style={{ height: 120 }} />}>
+                  <ExportVideoPanel
+                    videoRef={{
+                      get current() {
+                        return playerRef.current?.video?.()
+                      },
+                    }}
+                    source={source}
+                    edit={edit}
+                    duration={duration}
+                    fps={fps}
+                    captureCanvas={captureCanvas}
+                    filters={filters}
+                    onOpenResult={(file) => openVideoFile(file)}
+                    live={live}
+                  />
+                </Suspense>
+              )}
               {panel === 'filters' && (
                 <FilterPanel
                   filters={filters}
@@ -1282,6 +1512,7 @@ export default function Studio() {
                   outPoint={range.out}
                   progress={batchProgress}
                   onContactSheet={() => setModal('contact')}
+                  onCleanStill={() => cleanStill(2)}
                   audioTrigger={audioTrigger}
                   setAudioTrigger={setAudioTrigger}
                   audioLevel={audioLevel}
@@ -1374,38 +1605,26 @@ export default function Studio() {
               )}
             </div>
           </div>
-        </section>
-
-        <div
-          className="resizer hide-sm"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize panels"
-          tabIndex={0}
-          onPointerDown={startResize}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowLeft') setSplitPct((p) => Math.max(40, p - 2))
-            if (e.key === 'ArrowRight') setSplitPct((p) => Math.min(75, p + 2))
-          }}
-        />
-
-        <section className="col-gallery" aria-label={t('gallery.title')}>
-          <ErrorBoundary label="gallery">
-            <Gallery
-              selected={selected}
-              setSelected={setSelected}
-              onEdit={setEditorId}
-              onSeek={(s) => {
-                if (s.videoId && s.videoId !== activeId && sources.some((x) => x.id === s.videoId)) setActiveId(s.videoId)
-                setTimeout(() => seek(s.time), 50)
-                setMobileTab('video')
-              }}
-            />
-          </ErrorBoundary>
-        </section>
+        </aside>
       </div>
 
-      <section className="card export-card col-export" aria-label={t('export.title')}>
+      <section className="ws ws-frames" aria-label={t('gallery.title')}>
+        <ErrorBoundary label="gallery">
+          <Gallery
+            selected={selected}
+            setSelected={setSelected}
+            onEdit={setEditorId}
+            onAnimate={() => setMobileTab('export')}
+            onSeek={(s) => {
+              if (s.videoId && s.videoId !== activeId && sources.some((x) => x.id === s.videoId)) setActiveId(s.videoId)
+              setTimeout(() => seek(s.time), 50)
+              setMobileTab('video')
+            }}
+          />
+        </ErrorBoundary>
+      </section>
+
+      <section className="card export-card ws ws-animate" aria-label={t('export.title')}>
         <ErrorBoundary label="exporter">
           <Suspense fallback={<div className="skeleton" style={{ height: 160 }} />}>
             <ExportPanel
@@ -1444,32 +1663,19 @@ export default function Studio() {
         {tool !== 'none' && <span className="pill">Tool: {tool} · Esc to exit</span>}
       </footer>
 
-      <nav className="quickbar only-mobile" aria-label="Studio sections">
-        {[
-          ['video', t('tabs.video')],
-          ['frames', `${t('tabs.frames')} (${shots.length})`],
-          ['export', t('tabs.export')],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            className={`qtab ${mobileTab === id ? 'on' : ''}`}
-            aria-current={mobileTab === id ? 'page' : undefined}
-            onClick={() => setMobileTab(id)}
-          >
-            {label}
+      {mobileTab === 'video' && source && (
+        <div className="quickbar only-mobile" role="group" aria-label="Quick actions">
+          <button className="btn icon secondary" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
+            {playing ? '❚❚' : '▶'}
           </button>
-        ))}
-        {mobileTab === 'video' && source && (
-          <>
-            <button className="btn icon secondary" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-              {playing ? '❚❚' : '▶'}
-            </button>
-            <button className="btn icon capture" onClick={() => capture()} aria-label="Capture frame">
-              ◉
-            </button>
-          </>
-        )}
-      </nav>
+          <button className="btn capture" onClick={() => capture()} aria-label="Capture frame">
+            ◉ Capture
+          </button>
+          <button className="btn icon secondary" onClick={() => setMobileTab('frames')} aria-label="Open frames">
+            🖼 {shots.length}
+          </button>
+        </div>
+      )}
 
       {modal === 'shortcuts' && <ShortcutsHelp onClose={() => setModal(null)} />}
       {modal === 'url' && (

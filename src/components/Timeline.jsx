@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { formatClock, formatTimecode } from '../lib/timecode'
 
 /** Custom scrubber with in/out range, markers, captured-shot ticks, waveform and hover thumbnails. */
-export default function Timeline({ duration, time, fps, inPoint, outPoint, markers, shotTimes, peaks, onSeek, previewSrc, onMarkerClick }) {
+export default function Timeline({ duration, time, fps, inPoint, outPoint, markers, shotTimes, peaks, onSeek, previewSrc, onMarkerClick, clips, titles }) {
   const barRef = useRef(null)
   const waveRef = useRef(null)
   const thumbVideo = useRef(null)
@@ -97,7 +97,7 @@ export default function Timeline({ duration, time, fps, inPoint, outPoint, marke
   const re = outPoint ?? dur
 
   return (
-    <div className="timeline">
+    <div className={`timeline ${clips ? 'has-clips' : ''}`}>
       {previewSrc && <video ref={thumbVideo} src={previewSrc} muted preload="auto" style={{ display: 'none' }} aria-hidden="true" />}
       <div
         ref={barRef}
@@ -118,6 +118,26 @@ export default function Timeline({ duration, time, fps, inPoint, outPoint, marke
       >
         {peaks && <canvas ref={waveRef} className="tl-wave" aria-hidden="true" />}
         {hasRange && <div className="tl-range" style={{ left: pct(rs), width: dur ? `${((re - rs) / dur) * 100}%` : 0 }} />}
+        {clips && dur > 0 && (
+          <div className="tl-clips" aria-hidden="true">
+            {clips.map((c, i) => (
+              <div key={c.id} className="tl-clip" style={{ left: pct(c.in), width: `${((c.out - c.in) / dur) * 100}%` }}>
+                <span>
+                  {i + 1}
+                  {c.speed !== 1 ? ` · ${c.speed}×` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {(titles || []).map((tt) => (
+          <div
+            key={tt.id}
+            className="tl-title"
+            style={{ left: pct(tt.start), width: dur ? `${((tt.end - tt.start) / dur) * 100}%` : 0 }}
+            title={`Title: ${tt.text}`}
+          />
+        ))}
         <div className="tl-fill" style={{ width: pct(time) }} />
         {shotTimes.map((s) => (
           <div key={s.id} className="tl-shot" style={{ left: pct(s.time) }} title={`Frame at ${formatClock(s.time)}`} />

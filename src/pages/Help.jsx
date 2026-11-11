@@ -4,6 +4,18 @@ import { compatReport } from '../lib/compat'
 
 const FAQ = [
   [
+    'What is the difference between Smart and AI upscaling?',
+    'Smart upscaling uses Lanczos resampling plus contrast-adaptive sharpening: instant and faithful to the source. AI upscaling runs an ESRGAN neural network on your graphics card to rebuild edges and texture; it is slower, especially on large images or older devices, and best for small or soft frames. Both run entirely on your device.',
+  ],
+  [
+    'How does video export work, and why is it not instant?',
+    'Each frame is rendered through the same pipeline as the preview (cuts, color, crop, titles), encoded with your browser’s built-in encoder (WebCodecs) and written to an MP4 or WebM file in memory. It is frame-accurate, so a clip takes roughly its own length to export, more for 4K. Very long videos are limited by your device’s memory.',
+  ],
+  [
+    'What does “Clean still” do?',
+    'It merges the current frame with the two frames before and after it (a median stack). Random noise and compression flicker cancel out, giving a cleaner still than any single frame. It works best when nothing in the shot is moving.',
+  ],
+  [
     'Is my video uploaded anywhere?',
     'No. The file is opened directly by your browser and every frame, edit and GIF is produced on your device. See the Privacy page for details and how to verify it.',
   ],
@@ -43,11 +55,25 @@ export default function Help() {
         <h1>Help</h1>
         <h2>Getting started</h2>
         <ol>
-          <li>Open the Studio and drop in a video (or paste, choose a file, use your camera, or generate the sample clip).</li>
-          <li>Scrub with the timeline and arrow keys; set in/out points with I and O.</li>
-          <li>Grade the image in Filters. Hold H to compare with the original.</li>
-          <li>Press S to capture, or run a batch capture with B.</li>
-          <li>Edit a frame with ✎, then select frames and export a GIF, APNG, video or sprite sheet.</li>
+          <li>
+            <strong>Video.</strong> Open the Studio and drop in a video. In “Cut &amp; edit”, split (C), trim or cut ranges (set them with I and O), reorder
+            clips, set speeds, and add titles and fades. Grade it in “Color”.
+          </li>
+          <li>
+            <strong>Export the video</strong> from “Export video” as MP4 or WebM, at the source size, upscaled 2×, or up to 4K. “Open in studio” loads the
+            result as a new tab.
+          </li>
+          <li>
+            <strong>Capture.</strong> Press S for a frame, hold S for a burst, or use batch capture (B). “Auto-pick the best N frames” and “Clean still” find or
+            build the best stills for you.
+          </li>
+          <li>
+            <strong>Frames.</strong> Select frames and use ✨ Enhance to auto-fix, denoise, sharpen or upscale them in bulk, or open one with ✎ for layers,
+            retouching, text and crops. Originals are always kept.
+          </li>
+          <li>
+            <strong>Animate.</strong> Build a GIF, APNG, looping video or sprite sheet from selected frames or a range of the video.
+          </li>
         </ol>
         <h2>Tips</h2>
         <ul>

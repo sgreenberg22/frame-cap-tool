@@ -6,6 +6,9 @@ import { formatBytes } from '../lib/storage'
 import { canShareFiles, copyImageToClipboard, downloadBlob, downloadText, shareFiles, zipBlobs } from '../lib/download'
 import Lightbox from './Lightbox'
 import Modal from './Modal'
+import { blobToDrawable, canvasToBlob, makeThumb } from '../lib/capture'
+import { enhanceCanvas, stackCanvases, UPSCALE_CHOICES } from '../lib/enhanceClient'
+import { ENHANCE_TOOLS } from '../lib/enhance'
 
 const SORTS = [
   ['custom', 'Custom order'],
@@ -14,10 +17,11 @@ const SORTS = [
   ['size', 'File size'],
 ]
 
-export default function Gallery({ selected, setSelected, onEdit, onSeek }) {
+export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnimate }) {
   const t = useT()
   const app = useApp()
-  const { shots, removeShots, updateShot, reorderShot, duplicateShot, revertShot, toast, confirm, addShotRecords, clearShots } = app
+  const { shots, removeShots, updateShot, reorderShot, duplicateShot, revertShot, toast, confirm, addShotRecords, clearShots, addShotsFromCanvases, settings } =
+    app
   const [sort, setSort] = useState('custom')
   const [onlyFav, setOnlyFav] = useState(false)
   const [tagFilter, setTagFilter] = useState('')
@@ -90,6 +94,51 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek }) {
         (p) => setBusy(`Zipping ${Math.round(p * 100)}%`),
       )
       downloadBlob(zip, `frames_${new Date().toISOString().slice(0, 10)}.zip`)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const toCanvas = async (shot) => {
+    const d = await blobToDrawable(shot.blob)
+    const c = document.createElement('canvas')
+    c.width = d.width
+    c.height = d.height
+    c.getContext('2d').drawImage(d, 0, 0)
+    d.close?.()
+    return c
+  }
+
+  /** Run enhancement ops over every selected frame. Originals are kept, so each frame can be reverted. */
+  async function enhanceSelected(ops, label) {
+    const list = selectedShots
+    if (!list.length) return toast('Select one or more frames first', { kind: 'warn' })
+    try {
+      for (let i = 0; i < list.length; i++) {
+        setBusy(`${label} ${i + 1}/${list.length}…`)
+        const out = await enhanceCanvas(await toCanvas(list[i]), ops, (p) => setBusy(`${label} ${i + 1}/${list.length} · ${Math.round(p * 100)}%`))
+        const blob = await canvasToBlob(out, list[i].type || 'image/png', settings.imageQuality)
+        await updateShot(list[i].id, { blob, thumbBlob: await makeThumb(out), width: out.width, height: out.height })
+      }
+      toast(`${label}: ${list.length} frame${list.length > 1 ? 's' : ''} updated. Use ⋯ → Revert to undo.`)
+    } catch (e) {
+      toast(`${label} failed: ${e.message}`, { kind: 'error', timeout: 7000 })
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function stackSelected() {
+    const list = selectedShots
+    if (list.length < 2) return toast('Select at least two frames of the same shot', { kind: 'warn' })
+    if (list.some((s) => s.width !== list[0].width || s.height !== list[0].height)) return toast('Frames must be the same size to stack', { kind: 'warn' })
+    setBusy('Stacking…')
+    try {
+      const out = await stackCanvases(await Promise.all(list.map(toCanvas)), 'median')
+      await addShotsFromCanvases([{ canvas: out, time: list[0].time, video: list[0].video, videoId: list[0].videoId, note: `Stack of ${list.length} frames` }])
+      toast('Stacked frame added')
+    } catch (e) {
+      toast(`Stack failed: ${e.message}`, { kind: 'error' })
     } finally {
       setBusy('')
     }
@@ -390,6 +439,54 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek }) {
         <button className="btn secondary sm" onClick={selectNone} disabled={!selectedShots.length}>
           None
         </button>
+        <details className="menu">
+          <summary className={`btn sm ${selectedShots.length ? '' : 'secondary'}`} title="Improve or upscale the selected frames">
+            ✨ Enhance ▾
+          </summary>
+          <div className="menu-list wide">
+            <span className="menu-head">Improve</span>
+            {ENHANCE_TOOLS.map(([op, label, hint]) => (
+              <button
+                key={op}
+                title={hint}
+                onClick={(e) => {
+                  e.currentTarget.closest('details').open = false
+                  enhanceSelected([{ op }], label)
+                }}
+              >
+                {label}
+              </button>
+            ))}
+            <span className="menu-head">Upscale</span>
+            {UPSCALE_CHOICES.map(([id, label, ops, hint]) => (
+              <button
+                key={id}
+                title={hint}
+                onClick={(e) => {
+                  e.currentTarget.closest('details').open = false
+                  enhanceSelected(ops, label)
+                }}
+              >
+                {label}
+              </button>
+            ))}
+            <span className="menu-head">Combine</span>
+            <button
+              title="Median of the selected frames: removes noise and moving specks from a static shot"
+              onClick={(e) => {
+                e.currentTarget.closest('details').open = false
+                stackSelected()
+              }}
+            >
+              Stack frames (denoise)
+            </button>
+          </div>
+        </details>
+        {onAnimate && (
+          <button className="btn secondary sm" onClick={onAnimate} disabled={!shots.length} title="Build a GIF or animation from the selected frames">
+            Animate →
+          </button>
+        )}
         <button className="btn secondary sm" onClick={() => downloadSelected()} disabled={!selectedShots.length}>
           {selectedShots.length > 1 ? 'Download ZIP' : 'Download'}
         </button>

@@ -38,6 +38,8 @@ export const DEFAULT_SETTINGS = {
   watermarkOpacity: 0.5,
   watermarkPosition: 'bottom-left',
   watermarkImage: '',
+  autoEnhance: false,
+  captureUpscale: 'none', // none | smart2 | ai2
   watermarkImageScale: 0.18,
   shutterSound: false,
   flash: true,

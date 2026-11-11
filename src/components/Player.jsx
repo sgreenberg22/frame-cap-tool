@@ -35,6 +35,7 @@ const Player = forwardRef(function Player(
     onVideoEvent,
     onVideoError,
     flashKey,
+    titles,
   },
   ref,
 ) {
@@ -492,6 +493,19 @@ const Player = forwardRef(function Player(
             <line key={'m' + i} className={`measure ${l.ref ? 'ref' : ''}`} x1={l.x1 * 100} y1={l.y1 * 100} x2={l.x2 * 100} y2={l.y2 * 100} />
           ))}
         </svg>
+        {(titles || []).map((tt) => (
+          <div
+            key={tt.id}
+            className={`title-overlay ts-${tt.style}`}
+            style={{
+              top: `${{ top: 10, center: 50, lower: 78, bottom: 90 }[tt.position] ?? 90}%`,
+              fontSize: (frameSize.h || 360) * (tt.size / 100),
+              color: tt.color,
+            }}
+          >
+            <span>{tt.text}</span>
+          </div>
+        ))}
         {cue && (
           <div className="cue" style={{ transform: `rotate(${-rotate}deg)` }}>
             {cue}

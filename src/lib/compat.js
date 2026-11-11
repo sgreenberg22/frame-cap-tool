@@ -18,6 +18,12 @@ export function compatReport() {
       ok: has(() => 'requestVideoFrameCallback' in HTMLVideoElement.prototype),
       fallback: 'Frame stepping and FPS detection are approximate.',
     },
+    {
+      id: 'webcodecs-enc',
+      label: 'WebCodecs encoder (video export)',
+      ok: has(() => window.VideoEncoder && window.VideoFrame),
+      fallback: 'Video export is unavailable; animations still export.',
+    },
     { id: 'idb', label: 'IndexedDB (saving frames)', ok: has(() => window.indexedDB), fallback: 'Frames are kept only until you close the tab.' },
     { id: 'workers', label: 'Module workers (background GIF encoding)', ok: has(() => window.Worker), fallback: 'GIF export is unavailable.' },
     {

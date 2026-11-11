@@ -44,6 +44,9 @@ export default function Privacy() {
         <ul>
           <li>Opening a video from a URL fetches that URL directly from the server you typed.</li>
           <li>External links (GitHub, Buy Me a Coffee) open in a new tab.</li>
+          <li>
+            The AI upscaler’s model files are downloaded from this site the first time you use it, then run on your device. Your images are never sent anywhere.
+          </li>
         </ul>
         <h2>Check it yourself</h2>
         <ol>

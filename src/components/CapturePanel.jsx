@@ -14,6 +14,7 @@ const MODES = [
   ['range', 'In → out at interval'],
   ['scene', 'On scene change'],
   ['sharpest', 'Sharpest frame in range'],
+  ['best', 'Auto-pick the best N frames'],
 ]
 const POSITIONS = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center']
 
@@ -27,6 +28,7 @@ export default function CapturePanel({
   outPoint,
   progress,
   onContactSheet,
+  onCleanStill,
   audioTrigger,
   setAudioTrigger,
   audioLevel,
@@ -58,7 +60,7 @@ export default function CapturePanel({
     interval: !(batch.intervalMs >= LIMITS.batchMinIntervalMs && batch.intervalMs <= LIMITS.batchMaxIntervalMs),
   }
   const plan = useMemo(() => {
-    if (['scene', 'sharpest'].includes(batch.mode)) return null
+    if (['scene', 'sharpest', 'best'].includes(batch.mode)) return null
     const start = batch.mode === 'range' || batch.mode === 'spread' ? (inPoint ?? (batch.mode === 'spread' ? 0 : time)) : time
     const end = batch.mode === 'range' || batch.mode === 'spread' ? (outPoint ?? duration) : undefined
     return planBatch({ ...batch, start, end, duration, fps })
@@ -125,6 +127,33 @@ export default function CapturePanel({
         <small id="tpl-help" className="muted">
           Tokens: {'{video} {index} {timecode} {time} {date}'}
         </small>
+      </fieldset>
+
+      <fieldset>
+        <legend>Automatic improvement</legend>
+        <label className="inline check">
+          <input type="checkbox" checked={!!s.autoEnhance} onChange={(e) => setSettings({ autoEnhance: e.target.checked })} /> Auto-enhance every capture (white
+          balance, tone, denoise, sharpen)
+        </label>
+        <label className="field">
+          Upscale captures
+          <select value={s.captureUpscale || 'none'} onChange={(e) => setSettings({ captureUpscale: e.target.value })}>
+            <option value="none">Off</option>
+            <option value="smart2">Smart 2× (fast)</option>
+            <option value="ai2">AI 2× (ESRGAN, slower)</option>
+          </select>
+        </label>
+        <div className="row wrap gap-s">
+          <button
+            className="btn secondary sm"
+            onClick={onCleanStill}
+            disabled={disabled || live}
+            title="Merges the current frame with its neighbors to remove noise. Best on shots where nothing moves."
+          >
+            Clean still (stack 5 frames)
+          </button>
+        </div>
+        <small className="muted">You can also enhance or upscale any frame later in the Frames workspace.</small>
       </fieldset>
 
       <fieldset>
@@ -235,7 +264,7 @@ export default function CapturePanel({
         </label>
         {live && <small className="muted">Live sources capture in real time at the interval.</small>}
         <div className="grid2">
-          {['interval', 'frames', 'spread', 'scene'].includes(batch.mode) && (
+          {['interval', 'frames', 'spread', 'scene', 'best'].includes(batch.mode) && (
             <label className="field">
               {batch.mode === 'scene' ? 'Max shots' : 'Count'}
               <input
@@ -307,7 +336,7 @@ export default function CapturePanel({
             )}
           </>
         )}
-        {(batch.mode === 'spread' || batch.mode === 'range' || batch.mode === 'scene' || batch.mode === 'sharpest') && (
+        {['spread', 'range', 'scene', 'sharpest', 'best'].includes(batch.mode) && (
           <small className="muted">Uses the in/out range{inPoint == null && outPoint == null ? ' (none set: whole video)' : ''}.</small>
         )}
         {plan && (

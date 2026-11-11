@@ -2252,3 +2252,343 @@ meter {
 .empty-state .btn.secondary:hover {
   background: rgba(255, 255, 255, 0.1);
 }
+
+/* ---------- Workspaces (v2) ---------- */
+.workspace-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  position: sticky;
+  top: 58px;
+  z-index: 20;
+  backdrop-filter: blur(10px);
+}
+.ws-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  min-height: 48px;
+}
+.ws-step:hover {
+  background: var(--ring);
+}
+.ws-step.on {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 6px 18px var(--ring);
+}
+.ws-n {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid var(--border);
+  flex: none;
+}
+.ws-step.on .ws-n {
+  background: var(--on-accent);
+  color: var(--accent);
+  border-color: transparent;
+}
+.ws-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+.ws-text small {
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-arrow {
+  align-self: center;
+  color: var(--muted);
+}
+.studio .ws {
+  display: none;
+}
+.studio[data-tab='video'] .ws-video {
+  display: grid;
+}
+.studio[data-tab='frames'] .ws-frames {
+  display: block;
+}
+.studio[data-tab='export'] .ws-animate {
+  display: block;
+  margin-top: 0;
+}
+.col-side {
+  min-width: 0;
+  position: sticky;
+  top: 132px;
+  max-height: calc(100vh - 148px);
+  overflow: auto;
+  border-radius: var(--radius);
+}
+.recent-card {
+  padding: 10px 12px;
+}
+.recent-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0 2px;
+}
+.recent-thumb {
+  flex: 0 0 112px;
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  cursor: pointer;
+  color: var(--muted);
+  font:
+    11px ui-monospace,
+    monospace;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+.recent-thumb:hover {
+  border-color: var(--accent);
+}
+.recent-thumb img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
+  background: #111;
+  border-radius: 7px;
+  display: block;
+}
+.menu-list.wide {
+  min-width: 250px;
+  max-height: 60vh;
+  overflow: auto;
+}
+.menu-head {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 8px 12px 2px;
+  font-weight: 700;
+}
+.clip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.clip {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: var(--field);
+  display: grid;
+  gap: 6px;
+}
+.clip.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.clip select {
+  min-height: 32px;
+  padding: 2px 6px;
+}
+.title-row {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+.title-row .num {
+  width: 76px;
+  min-height: 32px;
+  padding: 2px 6px;
+}
+.timeline.has-clips .tl-bar {
+  background: repeating-linear-gradient(135deg, var(--field) 0 6px, rgba(229, 72, 77, 0.22) 6px 12px);
+}
+.tl-clips {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.tl-clip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 30%, var(--field));
+  border: 1px solid var(--accent-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tl-clip span {
+  font:
+    10px ui-monospace,
+    monospace;
+  padding: 1px 4px;
+  color: var(--text);
+  opacity: 0.85;
+}
+.tl-title {
+  position: absolute;
+  bottom: 0;
+  height: 5px;
+  background: #bf5af2;
+  border-radius: 3px;
+  pointer-events: none;
+}
+.title-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  translate: 0 -50%;
+  text-align: center;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: pre-line;
+  pointer-events: none;
+  padding: 0 4%;
+}
+.title-overlay.ts-outline span {
+  text-shadow:
+    0 0 0.12em #000,
+    0 0 0.12em #000,
+    0 0.05em 0.1em #000,
+    0 0 0.25em #000;
+}
+.title-overlay.ts-box span {
+  background: rgba(0, 0, 0, 0.65);
+  padding: 0.1em 0.4em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+@media (max-width: 1000px) {
+  .studio[data-tab='video'] .ws-video {
+    display: grid;
+  }
+  .col-side {
+    position: static;
+    max-height: none;
+  }
+}
+@media (max-width: 780px) {
+  .workspace-bar {
+    top: 96px;
+    padding: 4px;
+    gap: 2px;
+  }
+  .ws-step {
+    padding: 6px 8px;
+    gap: 6px;
+    min-height: 44px;
+  }
+  .ws-text small,
+  .ws-arrow {
+    display: none;
+  }
+  .quickbar {
+    justify-content: center;
+    gap: 10px;
+  }
+}
+.enhance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.layers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.layer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--field);
+}
+.layer.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.layer.hidden .layer-name {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.layer-name {
+  flex: 1;
+  text-align: left;
+  text-decoration: none;
+  color: var(--text) !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.enhance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.layers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.layer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--field);
+}
+.layer.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.layer.hidden .layer-name {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.layer-name {
+  flex: 1;
+  text-align: left;
+  text-decoration: none;
+  color: var(--text) !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

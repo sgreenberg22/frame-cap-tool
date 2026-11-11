@@ -3,18 +3,21 @@ import Modal from './Modal'
 
 const STEPS = [
   [
-    'Load a video',
-    'Drop a file anywhere, use “Choose video”, paste from the clipboard, or try the sample clip. Your camera and screen work too. Nothing is uploaded.',
-  ],
-  [
-    'Scrub and grade',
-    'Use the timeline, frame-step with ← →, change speed, and tweak exposure, color, curves or a LUT in the Filters tab. Hold H to compare with the original.',
+    '1 · Video',
+    'Drop in a video, then cut it: split at the playhead, trim or remove ranges, reorder clips, change speed, add titles and fades. Grade the color and export a finished MP4 or WebM. Nothing is uploaded.',
   ],
   [
     'Capture frames',
-    'Press S (or the capture button) for a single frame. Batch capture grabs many at once: on an interval, spread across a range, on scene changes, or the sharpest frame.',
+    'Press S to grab the current frame, hold S for a burst, or let batch capture pick frames for you: on an interval, at scene changes, or the sharpest and best frames in a range.',
   ],
-  ['Edit and export', 'Click ✎ on a frame to annotate, crop and redact. Select frames and build a GIF, APNG, video or sprite sheet in the Export section.'],
+  [
+    '2 · Frames',
+    'Every capture lands in Frames. Select some and use Enhance to auto-fix, denoise, sharpen or upscale them (including AI upscaling), or open one in the editor for layers, retouching, text and crops.',
+  ],
+  [
+    '3 · Animate',
+    'Turn selected frames, or a stretch of the video, into a GIF, APNG, looping video or sprite sheet. Use the numbered bar at the top to move between the three steps at any time.',
+  ],
 ]
 
 export default function Tour({ onDone }) {

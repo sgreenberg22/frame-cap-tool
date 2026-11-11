@@ -1,5 +1,5 @@
 // FrameCapture service worker: offline app shell. Never caches user media (blob: URLs never hit the network).
-const VERSION = 'fc-v1'
+const VERSION = 'fc-v2'
 const SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest', '/icons/icon-192.png']
 
 self.addEventListener('install', (e) => {
@@ -43,7 +43,7 @@ self.addEventListener('fetch', (e) => {
     caches.match(req).then((hit) => {
       const fetched = fetch(req)
         .then((res) => {
-          if (res.ok && (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/'))) {
+          if (res.ok && (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/') || url.pathname.startsWith('/models/'))) {
             const copy = res.clone()
             caches.open(VERSION).then((c) => c.put(req, copy))
           }

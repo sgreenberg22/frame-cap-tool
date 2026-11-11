@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.0 (2026-11-10)
+
+- **New workflow.** The studio is organized into three numbered workspaces (Video → Frames → Animate) with an inspector beside the player and a recent-frames strip that opens the editor in one click.
+- **Video editing.** Cut list with split, trim, cut-out, reorder, per-clip speed and volume; titles; fades; edit-aware preview; frame-accurate MP4/WebM export with audio (WebCodecs), up to 4K or 2× upscaled.
+- **Enhance and upscale.** Auto enhance, auto tone, auto white balance, denoise, sharpen, clarity, dehaze, low-light boost, deinterlace; Smart (Lanczos + CAS) and AI (ESRGAN) upscaling at 2× and 4×; bulk enhance in Frames; optional auto-enhance/upscale on capture.
+- **Smarter capture.** "Auto-pick the best N frames" and "Clean still" (median stack of neighboring frames).
+- **Photo editor.** Enhance tab, Layers panel with blend modes, clone stamp, magic eraser, full tone controls and tone curve.
+- Keyboard input now always reaches the open dialog, even after a button disables itself.
+
 ## 1.0.0 (2026-11-08)
 
 - Rebuilt the studio: WebGL2 color pipeline, frame-accurate timeline, in/out ranges, markers, zoom/pan, crop region, rotate/flip, scopes, measuring, captions, compare video, camera/screen sources and multiple video tabs.

@@ -25,7 +25,15 @@ import {
   replayOps,
   scaleObject,
   translateObject,
+  BLEND_MODES,
+  blendOf,
+  clonePatch,
+  LAYER_NAMES,
+  mapObject,
 } from './editorCore'
+import CurveEditor from '../CurveEditor'
+import { enhanceCanvas, UPSCALE_CHOICES } from '../../lib/enhanceClient'
+import { ENHANCE_TOOLS } from '../../lib/enhance'
 
 const TOOLS = [
   ['select', 'Select / move', 'V', '⬚'],
@@ -46,6 +54,8 @@ const TOOLS = [
   ['fill', 'Fill bucket', 'F', '◧'],
   ['eyedropper', 'Eyedropper', 'I', '⌖'],
   ['region', 'Select region (copy/paste)', 'M', '⬒'],
+  ['clone', 'Clone stamp (Alt-click sets the source)', 'J', '⎘'],
+  ['magic', 'Magic eraser (click a background to remove it)', 'W', '✦'],
   ['crop', 'Crop', 'C', '⌗'],
 ]
 const ASPECTS = [
@@ -122,6 +132,8 @@ export default function EditorModal({ shot, onClose, selected }) {
   const [sideTab, setSideTab] = useState('tool')
   const [busy, setBusy] = useState('')
   const clipboard = useRef(null)
+  const [cloneSrc, setCloneSrc] = useState(null)
+  const [strength, setStrength] = useState(1)
   const gesture = useRef(null)
   const pointers = useRef(new Map())
 
@@ -454,6 +466,26 @@ export default function EditorModal({ shot, onClose, selected }) {
         rememberColor(opt.color)
         break
       }
+      case 'clone':
+        if (e.altKey || !cloneSrc) {
+          setCloneSrc({ x: p.x, y: p.y })
+          toast('Clone source set. Now paint where you want to copy it.')
+        } else {
+          gesture.current = { type: 'clone', last: p, dx: p.x - cloneSrc.x, dy: p.y - cloneSrc.y }
+          setDraft({ ...base, type: 'stroke', mode: 'pen', color: '#ffffff', opacity: 0.35, size: opt.size * 3, hardness: 1, points: [[p.x, p.y, 0.5]] })
+        }
+        break
+      case 'magic': {
+        const mask = floodFill(displayRef.current, p.x, p.y, '#000000', opt.tolerance)
+        if (mask) {
+          const nb = canvasFrom(doc.base)
+          const nctx = nb.getContext('2d')
+          nctx.globalCompositeOperation = 'destination-out'
+          nctx.drawImage(mask, 0, 0)
+          commit('Magic erase', { base: nb })
+        }
+        break
+      }
       case 'region':
         gesture.current = { type: 'region', x: p.x, y: p.y }
         setRegion({ x: p.x, y: p.y, w: 0, h: 0 })
@@ -504,6 +536,9 @@ export default function EditorModal({ shot, onClose, selected }) {
       const vp = viewportRef.current
       vp.scrollLeft = g.sl - (e.clientX - g.x)
       vp.scrollTop = g.st - (e.clientY - g.y)
+    } else if (g.type === 'clone') {
+      g.last = p
+      setDraft((d) => d && { ...d, points: [...d.points, [p.x, p.y, 0.5]] })
     } else if (g.type === 'stroke') {
       const k = 1 / (1 + opt.smoothing)
       const sx = g.last.x + (p.x - g.last.x) * k
@@ -625,7 +660,14 @@ export default function EditorModal({ shot, onClose, selected }) {
     gesture.current = null
     setGuides([])
     if (!g || !doc) return
-    if (g.type === 'stroke' && draft) {
+    if (g.type === 'clone' && draft) {
+      // Sample from the picture without the preview stroke
+      const srcCanvas = blankCanvas(doc.base.width, doc.base.height)
+      composite(srcCanvas.getContext('2d'), adjusted, doc.objects)
+      const patch = clonePatch(srcCanvas, draft.points, draft.size, g.dx, g.dy, opt.hardness < 1 ? opt.hardness : 0.6)
+      commit('Clone stamp', { objects: [...doc.objects, { id: uid(), type: 'image', ...patch, opacity: opt.opacity }] })
+      setDraft(null)
+    } else if (g.type === 'stroke' && draft) {
       commit(tool === 'eraser' ? 'Erase' : tool === 'highlighter' ? 'Highlight' : 'Draw', { objects: [...doc.objects, draft] })
       setDraft(null)
     } else if (g.type === 'box' && draft) {
@@ -686,6 +728,26 @@ export default function EditorModal({ shot, onClose, selected }) {
   }
 
   // ---------- Geometry ----------
+  async function runEnhance(ops, label) {
+    if (!doc || busy) return
+    setBusy(`${label}…`)
+    try {
+      const out = await enhanceCanvas(doc.base, ops, (p) => setBusy(`${label} ${Math.round(p * 100)}%`))
+      const sx = out.width / doc.base.width
+      const sy = out.height / doc.base.height
+      const objects = sx === 1 && sy === 1 ? doc.objects : doc.objects.map((o) => mapObject(o, (x, y) => [x * sx, y * sy], Math.sqrt(sx * sy)))
+      commit(label, { base: out, objects })
+      if (sx !== 1) {
+        setResize((r) => ({ ...r, w: out.width, h: out.height }))
+        requestAnimationFrame(() => fitZoom(out))
+      }
+    } catch (e) {
+      toast(`${label} failed: ${e.message}`, { kind: 'error', timeout: 7000 })
+    } finally {
+      setBusy('')
+    }
+  }
+
   function applyGeometry(label, fn, op) {
     if (!doc) return
     const g = fn(doc)
@@ -1109,6 +1171,8 @@ export default function EditorModal({ shot, onClose, selected }) {
             <span>{TOOLS.find((t) => t[0] === tool)?.[1]}</span>
             {tool === 'polygon' && <span>Click to add points, double-click or Enter to finish</span>}
             {tool === 'crop' && <span>Drag handles, Enter to apply</span>}
+            {tool === 'clone' && <span>{cloneSrc ? 'Paint to copy · Alt-click to pick a new source' : 'Click the area to copy from'}</span>}
+            {tool === 'magic' && <span>Click a flat background to make it transparent (save as PNG or WebP)</span>}
             {tool === 'region' && <span>Drag a region, then Ctrl/⌘+C and Ctrl/⌘+V</span>}
             <span className="muted">Space+drag to pan · Ctrl/⌘+scroll to zoom</span>
           </div>
@@ -1118,7 +1182,9 @@ export default function EditorModal({ shot, onClose, selected }) {
           <div className="tabs small" role="tablist">
             {[
               ['tool', 'Tool'],
+              ['enhance', 'Enhance'],
               ['adjust', 'Adjust'],
+              ['layers', 'Layers'],
               ['transform', 'Transform'],
               ['export', 'Export'],
               ['history', 'History'],
@@ -1356,7 +1422,7 @@ export default function EditorModal({ shot, onClose, selected }) {
                     </label>
                   </>
                 )}
-                {tool === 'fill' && (
+                {(tool === 'fill' || tool === 'magic') && (
                   <Slider label="Tolerance" value={opt.tolerance} min={0} max={120} onChange={(v) => setOpt((o) => ({ ...o, tolerance: v }))} />
                 )}
                 {tool === 'region' && (
@@ -1421,10 +1487,23 @@ export default function EditorModal({ shot, onClose, selected }) {
                   ['vibrance', 'Vibrance', -100, 100, 1],
                   ['hue', 'Hue', -180, 180, 1],
                   ['temperature', 'Temperature', -100, 100, 1],
+                  ['tint', 'Tint', -100, 100, 1],
+                  ['highlights', 'Highlights', -100, 100, 1],
+                  ['shadows', 'Shadows', -100, 100, 1],
+                  ['gamma', 'Gamma', 0.2, 3, 0.01],
+                  ['levelsBlack', 'Black point', 0, 254, 1],
+                  ['levelsWhite', 'White point', 1, 255, 1],
                   ['sharpen', 'Sharpness', 0, 100, 1],
+                  ['blur', 'Blur', 0, 20, 0.5],
+                  ['vignette', 'Vignette', 0, 100, 1],
+                  ['grain', 'Film grain', 0, 100, 1],
                 ].map(([k, l, mn, mx, st]) => (
                   <Slider key={k} label={l} value={doc.adj[k]} min={mn} max={mx} step={st} def={DEFAULT_ADJ[k]} onChange={(val) => setAdj(k, val)} />
                 ))}
+                <details>
+                  <summary>Tone curve</summary>
+                  <CurveEditor value={doc.adj.curve} onChange={(c) => setAdj('curve', c)} />
+                </details>
                 <button className="btn secondary sm" onClick={() => commit('Reset adjustments', { adj: { ...DEFAULT_ADJ } })}>
                   Reset adjustments
                 </button>
@@ -1638,6 +1717,147 @@ export default function EditorModal({ shot, onClose, selected }) {
                   </button>
                   <button className="btn secondary sm" onClick={copyImage}>
                     Copy to clipboard
+                  </button>
+                </div>
+              </div>
+            )}
+            {sideTab === 'enhance' && doc && (
+              <div className="stack">
+                <button className="btn" onClick={() => runEnhance([{ op: 'autoEnhance', strength }], 'Auto enhance')} disabled={!!busy}>
+                  ✨ Auto enhance
+                </button>
+                <Slider label="Strength" value={Math.round(strength * 100)} min={10} max={200} unit="%" def={100} onChange={(v) => setStrength(v / 100)} />
+                <div className="enhance-grid">
+                  {ENHANCE_TOOLS.slice(1).map(([op, label, hint]) => (
+                    <button key={op} className="btn secondary sm" title={hint} onClick={() => runEnhance([{ op, strength }], label)} disabled={!!busy}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <fieldset>
+                  <legend>Upscale</legend>
+                  <div className="enhance-grid">
+                    {UPSCALE_CHOICES.map(([id, label, ops, hint]) => (
+                      <button key={id} className="btn secondary sm" title={hint} onClick={() => runEnhance(ops, label)} disabled={!!busy}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <small className="muted">
+                    Smart is instant and faithful. AI (ESRGAN) rebuilds texture and edges and runs on your graphics card; nothing is uploaded. Now {W} × {H}px.
+                  </small>
+                </fieldset>
+                <small className="muted">Each step is in History, so you can undo it or hold “Original” to compare.</small>
+              </div>
+            )}
+            {sideTab === 'layers' && doc && (
+              <div className="stack">
+                {doc.objects.length === 0 && <p className="muted">No layers yet. Everything you draw, type or stamp appears here.</p>}
+                <ul className="layers">
+                  {[...doc.objects].reverse().map((o) => {
+                    const idx = doc.objects.findIndex((x) => x.id === o.id)
+                    const patchObj = (label, pt) => commit(label, { objects: doc.objects.map((x) => (x.id === o.id ? { ...x, ...pt } : x)) })
+                    const moveTo = (to) => {
+                      const arr = [...doc.objects]
+                      const [it] = arr.splice(idx, 1)
+                      arr.splice(to, 0, it)
+                      commit('Reorder layer', { objects: arr })
+                    }
+                    return (
+                      <li key={o.id} className={`layer ${o.id === selId ? 'on' : ''} ${o.hidden ? 'hidden' : ''}`}>
+                        <button
+                          className="mini"
+                          onClick={() => patchObj(o.hidden ? 'Show layer' : 'Hide layer', { hidden: !o.hidden })}
+                          aria-label={o.hidden ? 'Show layer' : 'Hide layer'}
+                          aria-pressed={!o.hidden}
+                          title="Show / hide"
+                        >
+                          {o.hidden ? '◌' : '●'}
+                        </button>
+                        <button
+                          className="mini"
+                          onClick={() => patchObj(o.locked ? 'Unlock layer' : 'Lock layer', { locked: !o.locked })}
+                          aria-label={o.locked ? 'Unlock layer' : 'Lock layer'}
+                          aria-pressed={!!o.locked}
+                          title="Lock"
+                        >
+                          {o.locked ? '🔒' : '🔓'}
+                        </button>
+                        <button
+                          className="link layer-name"
+                          onClick={() => {
+                            setTool('select')
+                            setSelId(o.id)
+                          }}
+                        >
+                          {o.type === 'text'
+                            ? `“${String(o.text).slice(0, 18)}”`
+                            : o.type === 'step'
+                              ? `Step ${o.n}`
+                              : o.type === 'stroke'
+                                ? o.mode === 'erase'
+                                  ? 'Eraser'
+                                  : o.mode === 'highlighter'
+                                    ? 'Highlighter'
+                                    : 'Brush stroke'
+                                : LAYER_NAMES[o.type] || o.type}
+                        </button>
+                        <button className="mini" onClick={() => moveTo(idx + 1)} disabled={idx === doc.objects.length - 1} aria-label="Move layer up">
+                          ▲
+                        </button>
+                        <button className="mini" onClick={() => moveTo(idx - 1)} disabled={idx === 0} aria-label="Move layer down">
+                          ▼
+                        </button>
+                        <button
+                          className="mini"
+                          onClick={() => {
+                            commit('Delete layer', { objects: doc.objects.filter((x) => x.id !== o.id) })
+                            if (selId === o.id) setSelId(null)
+                          }}
+                          aria-label="Delete layer"
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {sel && (
+                  <fieldset>
+                    <legend>Selected layer</legend>
+                    <label className="field">
+                      Blend mode
+                      <select value={blendOf(sel)} onChange={(e) => updateSel({ blend: e.target.value })}>
+                        {BLEND_MODES.map((m) => (
+                          <option key={m} value={m}>
+                            {m === 'source-over' ? 'Normal' : m.replace('-', ' ')}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <Slider
+                      label="Opacity"
+                      value={Math.round((sel.opacity ?? 1) * 100)}
+                      min={5}
+                      max={100}
+                      unit="%"
+                      onChange={(v) => updateSel({ opacity: v / 100 })}
+                    />
+                  </fieldset>
+                )}
+                <div className="row gap-s wrap">
+                  <button
+                    className="btn secondary sm"
+                    disabled={!doc.objects.length}
+                    title="Merge all layers into the picture (adjustments stay editable)"
+                    onClick={() => {
+                      const c = blankCanvas(W, H)
+                      composite(c.getContext('2d'), doc.base, doc.objects)
+                      commit('Flatten layers', { base: c, objects: [] })
+                      setSelId(null)
+                    }}
+                  >
+                    Flatten layers
                   </button>
                 </div>
               </div>

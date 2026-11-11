@@ -9,6 +9,7 @@ export default function Modal({ title, onClose, children, size = 'md', closeOnBa
   const titleId = useId()
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const keyRef = useRef(null)
 
   useEffect(() => {
     const prev = document.activeElement
@@ -21,6 +22,20 @@ export default function Modal({ title, onClose, children, size = 'md', closeOnBa
       document.body.style.overflow = prevOverflow
       prev?.focus?.()
     }
+  }, [])
+
+  // If focus falls out of the dialog (e.g. the focused button became disabled), route keys back to the top dialog.
+  useEffect(() => {
+    const onDocKey = (e) => {
+      const el = ref.current
+      if (!el || el.contains(document.activeElement)) return
+      const modals = document.querySelectorAll('.modal')
+      if (modals[modals.length - 1] !== el.parentElement) return
+      el.focus()
+      keyRef.current?.(e)
+    }
+    document.addEventListener('keydown', onDocKey)
+    return () => document.removeEventListener('keydown', onDocKey)
   }, [])
 
   function handleKey(e) {
@@ -43,6 +58,8 @@ export default function Modal({ title, onClose, children, size = 'md', closeOnBa
       }
     }
   }
+
+  keyRef.current = handleKey
 
   return createPortal(
     <div className="modal" onMouseDown={(e) => closeOnBackdrop && e.target === e.currentTarget && onCloseRef.current?.()}>

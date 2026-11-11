@@ -3,7 +3,43 @@
 import { renderFiltered } from '../../lib/capture'
 import { DEFAULT_FILTERS } from '../../lib/filters'
 
-export const DEFAULT_ADJ = { brightness: 100, contrast: 100, saturate: 100, hue: 0, exposure: 0, temperature: 0, sharpen: 0, vibrance: 0 }
+export const DEFAULT_ADJ = {
+  brightness: 100,
+  contrast: 100,
+  saturate: 100,
+  hue: 0,
+  exposure: 0,
+  temperature: 0,
+  sharpen: 0,
+  vibrance: 0,
+  highlights: 0,
+  shadows: 0,
+  gamma: 1,
+  tint: 0,
+  vignette: 0,
+  grain: 0,
+  blur: 0,
+  levelsBlack: 0,
+  levelsWhite: 255,
+  levelsMid: 1,
+  curve: null,
+}
+export const BLEND_MODES = [
+  'source-over',
+  'multiply',
+  'screen',
+  'overlay',
+  'darken',
+  'lighten',
+  'color-dodge',
+  'color-burn',
+  'soft-light',
+  'hard-light',
+  'difference',
+  'luminosity',
+  'color',
+]
+export const blendOf = (o) => o.blend || (o.type === 'stroke' && o.mode === 'highlighter' ? 'multiply' : 'source-over')
 export const DEFAULT_FRAME = { border: 0, borderColor: '#ffffff', radius: 0, shadow: 0, shadowColor: '#000000', background: '#ffffff' }
 
 export function canvasFrom(src, w = src.width || src.naturalWidth, h = src.height || src.naturalHeight) {
@@ -70,7 +106,7 @@ export const fontOf = (o) => `${o.weight || 700} ${o.size}px ${o.font || 'system
 export function hitTest(objects, x, y, ctx) {
   for (let i = objects.length - 1; i >= 0; i--) {
     const o = objects[i]
-    if (o.type === 'stroke' && o.mode === 'erase') continue
+    if ((o.type === 'stroke' && o.mode === 'erase') || o.hidden || o.locked) continue
     const b = bounds(o, ctx)
     const tol = 6
     if (x >= b.x - tol && x <= b.x + b.w + tol && y >= b.y - tol && y <= b.y + b.h + tol) return o.id
@@ -275,7 +311,6 @@ export function drawObject(ctx, o, source) {
         ctx.globalAlpha = 1
         ctx.strokeStyle = ctx.fillStyle = '#000'
       } else if (o.mode === 'highlighter') {
-        ctx.globalCompositeOperation = 'multiply'
         ctx.globalAlpha = o.opacity ?? 0.4
         ctx.lineCap = 'square'
       }
@@ -417,7 +452,7 @@ export function composite(ctx, adjusted, objects, inkCanvas) {
   const { width: W, height: H } = ctx.canvas
   ctx.clearRect(0, 0, W, H)
   ctx.drawImage(adjusted, 0, 0)
-  for (const o of objects) if (o.type === 'pixelate' || o.type === 'blur') drawObject(ctx, o, adjusted)
+  for (const o of objects) if (!o.hidden && (o.type === 'pixelate' || o.type === 'blur')) drawObject(ctx, o, adjusted)
   const ink = inkCanvas || blankCanvas(W, H)
   if (ink.width !== W || ink.height !== H) {
     ink.width = W
@@ -425,9 +460,32 @@ export function composite(ctx, adjusted, objects, inkCanvas) {
   }
   const ictx = ink.getContext('2d')
   ictx.clearRect(0, 0, W, H)
-  for (const o of objects) if (!['pixelate', 'blur', 'spotlight'].includes(o.type)) drawObject(ictx, o)
-  ctx.drawImage(ink, 0, 0)
-  for (const o of objects) if (o.type === 'spotlight') drawSpotlight(ctx, o)
+  let dirty = false
+  const flush = (mode = 'source-over') => {
+    if (!dirty) return
+    ctx.save()
+    ctx.globalCompositeOperation = mode
+    ctx.drawImage(ink, 0, 0)
+    ctx.restore()
+    ictx.clearRect(0, 0, W, H)
+    dirty = false
+  }
+  // Normal objects share one ink layer (so the eraser can remove them); blended objects composite on their own.
+  for (const o of objects) {
+    if (o.hidden || ['pixelate', 'blur', 'spotlight'].includes(o.type)) continue
+    const mode = blendOf(o)
+    if (mode !== 'source-over') {
+      flush()
+      drawObject(ictx, o)
+      dirty = true
+      flush(mode)
+    } else {
+      drawObject(ictx, o)
+      dirty = true
+    }
+  }
+  flush()
+  for (const o of objects) if (!o.hidden && o.type === 'spotlight') drawSpotlight(ctx, o)
 }
 
 /** Final export: composite + optional border, rounded corners and drop shadow. */
@@ -561,3 +619,46 @@ export const EMOJIS = [
   '🚀',
   '💯',
 ]
+
+/** Clone-stamp patch: pixels from `source` shifted by (dx, dy), masked by a soft brush stroke along `points`. */
+export function clonePatch(source, points, size, dx, dy, hardness = 0.6) {
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity
+  for (const [x, y] of points) {
+    x0 = Math.min(x0, x)
+    y0 = Math.min(y0, y)
+    x1 = Math.max(x1, x)
+    y1 = Math.max(y1, y)
+  }
+  const pad = size
+  x0 = Math.floor(x0 - pad)
+  y0 = Math.floor(y0 - pad)
+  const w = Math.ceil(x1 + pad) - x0,
+    h = Math.ceil(y1 + pad) - y0
+  const c = blankCanvas(w, h)
+  const ctx = c.getContext('2d')
+  ctx.translate(-x0, -y0)
+  drawObject(ctx, { type: 'stroke', mode: 'pen', color: '#000', size, opacity: 1, hardness, points })
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.globalCompositeOperation = 'source-in'
+  ctx.drawImage(source, -(x0 - dx), -(y0 - dy))
+  return { canvas: c, x: x0, y: y0, w, h }
+}
+
+export const LAYER_NAMES = {
+  stroke: 'Brush stroke',
+  rect: 'Rectangle',
+  ellipse: 'Ellipse',
+  line: 'Line',
+  arrow: 'Arrow',
+  polygon: 'Polygon',
+  text: 'Text',
+  step: 'Step',
+  emoji: 'Sticker',
+  image: 'Image patch',
+  pixelate: 'Pixelate',
+  blur: 'Blur',
+  spotlight: 'Spotlight',
+}
