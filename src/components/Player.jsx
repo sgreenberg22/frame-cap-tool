@@ -1,5 +1,6 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { createRenderer, supportsWebGL2 } from '../lib/gl'
+import { createRenderer, disableWebGL2, supportsWebGL2 } from '../lib/gl'
+import { explainDecodeFailure, sniffCodec } from '../lib/codec'
 import { rgbToHex, toCssFilter } from '../lib/filters'
 import { readPixel } from '../lib/analysis'
 
@@ -44,7 +45,10 @@ const Player = forwardRef(function Player(
   const stageRef = useRef(null)
   const frameRef = useRef(null)
   const rendererRef = useRef(null)
-  const [glOk] = useState(() => supportsWebGL2())
+  const [glOk, setGlOk] = useState(() => supportsWebGL2())
+  const [decodeError, setDecodeError] = useState(null)
+  const eventRef = useRef(onVideoEvent)
+  eventRef.current = onVideoEvent
   const [glReady, setGlReady] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -114,6 +118,46 @@ const Player = forwardRef(function Player(
     })
   }, [])
 
+  // Black-screen watchdog: some GPU/driver/codec combinations upload an empty texture.
+  // If the video has picture but the GL canvas stays black, drop to plain video playback.
+  useEffect(() => {
+    if (!glReady || !source?.id) return
+    const lum = (el) => {
+      try {
+        const c = document.createElement('canvas')
+        c.width = 24
+        c.height = 14
+        const x = c.getContext('2d', { willReadFrequently: true })
+        x.drawImage(el, 0, 0, 24, 14)
+        const d = x.getImageData(0, 0, 24, 14).data
+        let sum = 0
+        for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2]
+        return sum / (d.length / 4) / 3
+      } catch {
+        return null
+      }
+    }
+    let bad = 0
+    const timers = [700, 1500, 2600].map((ms) =>
+      setTimeout(() => {
+        const v = videoRef.current
+        const cv = canvasRef.current
+        if (!v || !cv || !v.videoWidth || v.readyState < 2) return
+        draw(true)
+        const g = lum(cv)
+        const vid = lum(v)
+        if (g === null || vid === null || vid <= 12) return
+        if (g < 2) bad += 1
+        if (bad >= 2) {
+          disableWebGL2()
+          setGlOk(false)
+          eventRef.current?.('gl-fallback')
+        }
+      }, ms),
+    )
+    return () => timers.forEach(clearTimeout)
+  }, [source?.id, glReady, draw])
+
   // Render loop: every presented frame while playing, plus on seek/filter changes
   useEffect(() => {
     const v = videoRef.current
@@ -159,6 +203,7 @@ const Player = forwardRef(function Player(
     if (!v) return
     setZoom(1)
     setPan({ x: 0, y: 0 })
+    setDecodeError(null)
     if (!source) {
       v.removeAttribute('src')
       v.srcObject = null
@@ -442,10 +487,22 @@ const Player = forwardRef(function Player(
           playsInline
           preload="auto"
           style={{ filter: fallbackCss, opacity: glReady ? 0.001 : 1 }}
-          onError={() => onVideoError?.(videoRef.current?.error)}
+          onError={() => {
+            const err = videoRef.current?.error
+            onVideoError?.(err)
+            if (source?.kind === 'file' && source.file) {
+              setDecodeError({ codecs: null })
+              sniffCodec(source.file)
+                .then((codecs) => setDecodeError({ codecs }))
+                .catch(() => setDecodeError({ codecs: [] }))
+            } else setDecodeError({ codecs: [] })
+          }}
           onPlay={() => onVideoEvent?.('play')}
           onPause={() => onVideoEvent?.('pause')}
-          onLoadedMetadata={() => onVideoEvent?.('loadedmetadata')}
+          onLoadedMetadata={() => {
+            setDecodeError(null)
+            onVideoEvent?.('loadedmetadata')
+          }}
           onRateChange={() => onVideoEvent?.('ratechange')}
           onVolumeChange={() => onVideoEvent?.('volumechange')}
           onEnded={() => onVideoEvent?.('ended')}
@@ -512,6 +569,25 @@ const Player = forwardRef(function Player(
           </div>
         )}
       </div>
+      {decodeError && source && (
+        <div className="decode-error" role="alert">
+          {(() => {
+            const e = explainDecodeFailure(decodeError.codecs || [], source.name)
+            return (
+              <>
+                <strong>{e.title}</strong>
+                <p>{e.body}</p>
+                <ul>
+                  {e.steps.map((st) => (
+                    <li key={st}>{st}</li>
+                  ))}
+                </ul>
+                {decodeError.codecs === null && <small>Checking the file…</small>}
+              </>
+            )
+          })()}
+        </div>
+      )}
       {flash && <div className="flash" />}
       {readout && (
         <div

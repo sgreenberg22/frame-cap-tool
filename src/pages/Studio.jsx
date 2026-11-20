@@ -362,6 +362,14 @@ export default function Studio() {
 
   const onVideoEvent = useCallback(
     (type) => {
+      if (type === 'gl-fallback') {
+        toast('GPU rendering showed a black picture on this device, so the player switched to compatibility mode. Filters still work.', {
+          kind: 'warn',
+          timeout: 9000,
+        })
+        logError('GL black frame watchdog fired', 'render')
+        return
+      }
       const el = playerRef.current?.video?.()
       if (!el) return
       if (type === 'play') setPlaying(true)
@@ -373,7 +381,7 @@ export default function Studio() {
       if (type === 'durationchange') force((n) => n + 1)
       if (type === 'ratechange' && !el.srcObject) setSpeedState(el.playbackRate)
     },
-    [applyPlaybackProps],
+    [applyPlaybackProps, toast, logError],
   )
 
   const onVideoError = useCallback(

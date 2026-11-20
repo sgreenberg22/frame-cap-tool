@@ -2825,3 +2825,29 @@ meter {
 .palette-list li.on {
   background: var(--accent-soft, rgba(255, 138, 61, 0.18));
 }
+
+.decode-error {
+  position: absolute;
+  inset: 12px;
+  z-index: 30;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 22px;
+  border-radius: 14px;
+  background: rgba(20, 16, 12, 0.92);
+  color: #fff;
+  font-size: 0.92rem;
+}
+.decode-error strong {
+  font-size: 1.1rem;
+}
+.decode-error p,
+.decode-error ul {
+  margin: 0;
+}
+.decode-error ul {
+  padding-left: 1.1rem;
+}

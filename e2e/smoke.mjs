@@ -166,6 +166,19 @@ try {
   await page.keyboard.press('Escape')
   ok('command palette runs actions and shows what is new')
 
+  // Undecodable video (HEVC-like file): the player must explain itself instead of staying black
+  await page.goto(BASE + '/studio')
+  await page
+    .locator('input[type=file]')
+    .first()
+    .setInputFiles({
+      name: 'phone.mov',
+      mimeType: 'video/quicktime',
+      buffer: Buffer.from('\0\0\0\x14ftypqt  \0\0\0\0qt  \0\0\0\x0cmoovhvc1 padding padding padding'),
+    })
+  await page.getByRole('alert').filter({ hasText: 'HEVC' }).waitFor({ timeout: 10000 })
+  ok('unplayable video shows an explanation')
+
   errors.length ? fail('console errors:\n' + errors.join('\n')) : ok('no console errors')
 } catch (e) {
   fail(e.stack || e.message)

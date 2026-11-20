@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Black-screen fixes.** A video the browser cannot decode (for example iPhone HEVC, ProRes, AV1 on some machines) now shows a permanent explanation with fix steps instead of a black player. If GPU rendering produces a black picture while the video has one, the player detects it and switches to compatibility mode automatically (captures too).
+
 - **Hosting moved to Cloudflare Pages.** Added `public/_headers` (CSP, security headers, caching), removed the Fly.io config and deploy jobs, renamed the workflow to `ci.yml`, and pointed canonical/sitemap URLs at `frame-cap-tool.pages.dev`.
 
 - **Fullscreen controls.** Fullscreen now shows an auto-hiding control bar: seek bar, play/pause, frame and 5 s steps, speed, volume, capture, batch, marker, in/out, A-B loop, split, picture-in-picture and exit, plus a capture counter and inline "Captured" confirmation.

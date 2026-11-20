@@ -136,6 +136,11 @@ export function hueMatrix(deg) {
 }
 
 let webgl2Support
+/** Called when the GPU path produced a black picture; everything falls back to CPU/CSS from then on. */
+export function disableWebGL2() {
+  webgl2Support = false
+}
+
 export function supportsWebGL2() {
   if (webgl2Support !== undefined) return webgl2Support
   try {
