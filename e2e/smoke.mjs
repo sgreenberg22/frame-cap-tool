@@ -129,6 +129,22 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.thumb').length === 5, null, { timeout: 5000 })
   ok('frames persist across reload')
 
+  // Fullscreen: the control bar must be present and usable inside the fullscreen element
+  await page.goto(BASE + '/studio')
+  await page
+    .getByRole('button', { name: 'Try a sample clip' })
+    .click()
+    .catch(() => {})
+  await page.waitForSelector('.player-wrap video', { timeout: 30000 })
+  await page.getByRole('button', { name: 'Fullscreen' }).first().click()
+  const fsBar = page.getByRole('toolbar', { name: 'Fullscreen controls' })
+  await fsBar.waitFor({ timeout: 5000 })
+  await fsBar.getByRole('button', { name: /Capture/ }).click()
+  await page.waitForFunction(() => /1 captured|\d+ captured/.test(document.querySelector('.fs-badge')?.textContent || ''))
+  await fsBar.getByRole('button', { name: 'Exit fullscreen' }).click()
+  await page.waitForFunction(() => !document.fullscreenElement)
+  ok('fullscreen controls capture and exit')
+
   errors.length ? fail('console errors:\n' + errors.join('\n')) : ok('no console errors')
 } catch (e) {
   fail(e.stack || e.message)

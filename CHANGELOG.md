@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Fullscreen controls.** Fullscreen now shows an auto-hiding control bar: seek bar, play/pause, frame and 5 s steps, speed, volume, capture, batch, marker, in/out, A-B loop, split, picture-in-picture and exit, plus a capture counter and inline "Captured" confirmation.
+- Added `docs/V3-IMPROVEMENT-PROMPT.md`, a 120-item prompt for the next round of improvements.
+
 ## 2.0.0 (2026-11-10)
 
 - **New workflow.** The studio is organized into three numbered workspaces (Video → Frames → Animate) with an inspector beside the player and a recent-frames strip that opens the editor in one click.

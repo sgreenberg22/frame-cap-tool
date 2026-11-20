@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useStat
 import Player from '../components/Player'
 import Timeline from '../components/Timeline'
 import Transport from '../components/Transport'
+import FullscreenBar from '../components/FullscreenBar'
 import FilterPanel from '../components/FilterPanel'
 import CapturePanel from '../components/CapturePanel'
 import ViewPanel from '../components/ViewPanel'
@@ -72,6 +73,7 @@ export default function Studio() {
   const [overlays, setOverlays] = useState(() => ls.get('fc.overlays', { thirds: false, grid: 0, crosshair: false, safe: false }))
   const [roi, setRoi] = useState(null)
   const [tool, setTool] = useState('none')
+  const [isFs, setIsFs] = useState(false)
   const [rotate, setRotate] = useState(0)
   const [flipH, setFlipH] = useState(false)
   const [flipV, setFlipV] = useState(false)
@@ -894,6 +896,15 @@ export default function Studio() {
     if (document.fullscreenElement) document.exitFullscreen?.()
     else (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)
   }, [])
+  useEffect(() => {
+    const on = () => setIsFs(!!document.fullscreenElement && document.fullscreenElement.classList.contains('player-wrap'))
+    document.addEventListener('fullscreenchange', on)
+    document.addEventListener('webkitfullscreenchange', on)
+    return () => {
+      document.removeEventListener('fullscreenchange', on)
+      document.removeEventListener('webkitfullscreenchange', on)
+    }
+  }, [])
   const pip = useCallback(async () => {
     const el = playerRef.current?.video?.()
     try {
@@ -1253,6 +1264,41 @@ export default function Studio() {
                   titles={shownTitles}
                 />
               </ErrorBoundary>
+              {isFs && source && (
+                <FullscreenBar
+                  time={time}
+                  duration={duration}
+                  fps={fps}
+                  playing={playing}
+                  speed={speed}
+                  setSpeed={setSpeed}
+                  volume={volume}
+                  muted={muted}
+                  setVolume={setVolume}
+                  toggleMute={() => setMuted((m) => !m)}
+                  onPlayPause={togglePlay}
+                  onStep={step}
+                  onJump={jump}
+                  onSeek={seek}
+                  onCapture={() => capture()}
+                  onBatch={runBatch}
+                  batchRunning={!!batchProgress}
+                  onMarker={addMarker}
+                  onSplit={splitHere}
+                  canSplit={!live}
+                  inPoint={range.in}
+                  outPoint={range.out}
+                  setIn={() => setRange((r) => ({ ...r, in: nowTime() }))}
+                  setOut={() => setRange((r) => ({ ...r, out: nowTime() }))}
+                  loopRange={loopRange}
+                  toggleLoop={() => setLoopRange((x) => !x)}
+                  onPip={pip}
+                  pipSupported={!!document.pictureInPictureEnabled}
+                  onExit={fullscreen}
+                  shotCount={shots.length}
+                  live={live}
+                />
+              )}
               {!source && (
                 <div className="empty-state">
                   <div className="empty-icon" aria-hidden="true">
