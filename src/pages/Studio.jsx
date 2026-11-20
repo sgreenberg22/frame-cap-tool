@@ -897,7 +897,13 @@ export default function Studio() {
     else (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)
   }, [])
   useEffect(() => {
-    const on = () => setIsFs(!!document.fullscreenElement && document.fullscreenElement.classList.contains('player-wrap'))
+    const on = () => {
+      const fs = !!document.fullscreenElement && document.fullscreenElement.classList.contains('player-wrap')
+      setIsFs(fs)
+      // Phones: landscape suits video. Not supported everywhere, so ignore failures.
+      if (fs) screen.orientation?.lock?.('landscape')?.catch?.(() => {})
+      else screen.orientation?.unlock?.()
+    }
     document.addEventListener('fullscreenchange', on)
     document.addEventListener('webkitfullscreenchange', on)
     return () => {

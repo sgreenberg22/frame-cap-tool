@@ -5,6 +5,10 @@
 - **Hosting moved to Cloudflare Pages.** Added `public/_headers` (CSP, security headers, caching), removed the Fly.io config and deploy jobs, renamed the workflow to `ci.yml`, and pointed canonical/sitemap URLs at `frame-cap-tool.pages.dev`.
 
 - **Fullscreen controls.** Fullscreen now shows an auto-hiding control bar: seek bar, play/pause, frame and 5 s steps, speed, volume, capture, batch, marker, in/out, A-B loop, split, picture-in-picture and exit, plus a capture counter and inline "Captured" confirmation.
+- **Fullscreen v2.** Double-click to play/pause, double-click the edges to skip 5 s, capture filmstrip, marker drawer, guides, rotate/flip, 3-2-1 self-timer, landscape lock on phones.
+- **Command palette** (Ctrl/⌘ K) and a **What's new** dialog.
+- **Near-duplicate cleanup** for captured frames (Enhance menu).
+- **Video export** can target a file size (Discord, email, WhatsApp, X presets) and export audio only as WAV.
 - Added `docs/V3-IMPROVEMENT-PROMPT.md`, a 120-item prompt for the next round of improvements.
 
 ## 2.0.0 (2026-11-10)

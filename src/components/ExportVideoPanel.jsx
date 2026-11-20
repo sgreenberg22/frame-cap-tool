@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useApp } from '../state/store'
 import { canExportVideo, decodeAudio, exportVideo } from '../lib/videoExport'
-import { defaultClips, framePlan, totalDuration } from '../lib/clips'
+import { defaultClips, framePlan, renderAudio, totalDuration } from '../lib/clips'
 import { drawTitles } from '../lib/titles'
 import { downloadBlob } from '../lib/download'
+import { encodeWav } from '../lib/wav'
 import { formatBytes, ls } from '../lib/storage'
 import { formatClock } from '../lib/timecode'
 import { bitrateForTarget, SIZE_PRESETS } from '../lib/targetSize'
@@ -109,6 +110,23 @@ export default function ExportVideoPanel({ videoRef, source, edit, duration, fps
     }
   }
 
+  async function exportAudioOnly() {
+    if (!source?.file) return toast('Audio export needs a video file', { kind: 'warn' })
+    setStatus({ p: 0, stage: 'Decoding audio…' })
+    try {
+      const a = await decodeAudio(source.file)
+      if (!a) throw new Error('No decodable audio track')
+      const pcm = renderAudio(a.channels, a.sampleRate, clips, { fadeIn: edit.fadeIn || 0, fadeOut: edit.fadeOut || 0 })
+      const blob = encodeWav(pcm, a.sampleRate)
+      downloadBlob(blob, `${(source.name || 'audio').replace(/\.[^.]+$/, '')}_edit.wav`)
+      toast(`Audio exported (${formatBytes(blob.size)})`)
+    } catch (e) {
+      toast(`Audio export failed: ${e.message}`, { kind: 'error' })
+    } finally {
+      setStatus(null)
+    }
+  }
+
   return (
     <div className="stack">
       <p className="muted small">
@@ -187,6 +205,9 @@ export default function ExportVideoPanel({ videoRef, source, edit, duration, fps
       <div className="row wrap gap-s" aria-live="polite">
         <button className="btn" onClick={run} disabled={!!status || !v?.videoWidth}>
           Export video
+        </button>
+        <button className="btn secondary" onClick={exportAudioOnly} disabled={!!status || !v?.videoWidth} title="Download just the edited audio as a WAV file">
+          Audio only (WAV)
         </button>
         {status && (
           <>
