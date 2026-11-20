@@ -10,6 +10,7 @@ import VideoInfo from '../components/VideoInfo'
 import Scopes from '../components/Scopes'
 import Gallery from '../components/Gallery'
 import ClipsPanel from '../components/ClipsPanel'
+import { scanSceneCuts } from '../lib/autoCut'
 import { clipAt, defaultClips, isEdited, splitAt } from '../lib/clips'
 import { activeTitles } from '../lib/titles'
 import { enhanceCanvas, stackCanvases } from '../lib/enhanceClient'
@@ -867,6 +868,20 @@ export default function Studio() {
     } else toast('No black bars detected on this frame')
   }
 
+  async function getPeaks() {
+    if (peaks[activeId]) return peaks[activeId]
+    if (!source?.file) throw new Error('needs a local video file')
+    const pk = await computePeaks(source.file)
+    setPeaks((p) => ({ ...p, [activeId]: pk }))
+    return pk
+  }
+  async function scanScenes(opts) {
+    const el = playerRef.current?.video?.()
+    if (!el) throw new Error('no video loaded')
+    el.pause()
+    return scanSceneCuts(el, { ...opts, step: Math.max(0.25, el.duration / 400) })
+  }
+
   async function toggleWaveform() {
     if (peaks[activeId]) return setPeaks((p) => ({ ...p, [activeId]: null }))
     if (!source?.file) return toast('Waveforms need a local file', { kind: 'warn' })
@@ -1541,6 +1556,8 @@ export default function Studio() {
                   onExport={() => setPanel('exportVideo')}
                   disabled={!source || !duration}
                   live={live}
+                  getPeaks={getPeaks}
+                  scanScenes={scanScenes}
                 />
               )}
               {panel === 'exportVideo' && (

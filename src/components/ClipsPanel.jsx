@@ -1,14 +1,28 @@
-import React from 'react'
+import React, { useRef, useState } from 'react'
 import Slider from './Slider'
 import { clipAt, clipLength, cutRange, defaultClips, isEdited, keepRange, moveClip, splitAt, totalDuration } from '../lib/clips'
 import { TITLE_POSITIONS, TITLE_STYLES } from '../lib/titles'
 import { formatClock } from '../lib/timecode'
+import { applyCuts, detectSilences, splitAtTimes } from '../lib/autoCut'
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 
 /** Cut list editor: split, trim, remove, reorder, per-clip speed and volume, fades and titles. */
-export default function ClipsPanel({ edit, setEdit, duration, time, range, previewEdit, setPreviewEdit, onSeek, onExport, disabled, live }) {
-  if (live) return <p className="muted">Editing needs a video file. Record or open a file to cut it.</p>
+export default function ClipsPanel({
+  edit,
+  setEdit,
+  duration,
+  time,
+  range,
+  previewEdit,
+  setPreviewEdit,
+  onSeek,
+  onExport,
+  disabled,
+  live,
+  getPeaks,
+  scanScenes,
+}) {
   const clips = edit.clips || defaultClips(duration)
   const setClips = (next) => setEdit((e) => ({ ...e, clips: next.length ? next : defaultClips(duration) }))
   const cur = clipAt(clips, time)
@@ -17,8 +31,54 @@ export default function ClipsPanel({ edit, setEdit, duration, time, range, previ
   const a = range.in ?? 0
   const b = range.out ?? duration
   const patch = (i, p) => setClips(clips.map((c, k) => (k === i ? { ...c, ...p } : c)))
+  const [auto, setAuto] = useState({ threshold: 4, minSilence: 0.6, sceneSens: 14 })
+  const [autoBusy, setAutoBusy] = useState(null) // { label, p }
+  const [autoMsg, setAutoMsg] = useState('')
+  const cancelAuto = useRef(false)
+
+  async function removeSilences() {
+    setAutoMsg('')
+    setAutoBusy({ label: 'Reading the audio…', p: 0 })
+    try {
+      const peaks = await getPeaks()
+      if (!peaks) return setAutoMsg('No audio could be read from this file.')
+      const ranges = detectSilences(peaks, duration, { threshold: auto.threshold / 100, minSilence: auto.minSilence })
+      if (!ranges.length) return setAutoMsg('No silences found. Try a higher level or a shorter minimum length.')
+      const removed = ranges.reduce((t, r) => t + (r.b - r.a), 0)
+      setClips(applyCuts(clips, ranges))
+      setAutoMsg(`Removed ${ranges.length} silence${ranges.length === 1 ? '' : 's'} (${formatClock(removed)}). Use Reset cuts to undo.`)
+    } catch (e) {
+      setAutoMsg(`Could not analyze audio: ${e.message}`)
+    } finally {
+      setAutoBusy(null)
+    }
+  }
+
+  async function splitScenes() {
+    setAutoMsg('')
+    cancelAuto.current = false
+    setAutoBusy({ label: 'Scanning for scene changes…', p: 0 })
+    try {
+      const cuts = await scanScenes({
+        threshold: auto.sceneSens,
+        isCancelled: () => cancelAuto.current,
+        onProgress: (p) => setAutoBusy({ label: 'Scanning for scene changes…', p }),
+      })
+      if (cancelAuto.current) return setAutoMsg('Scan cancelled.')
+      if (!cuts.length) return setAutoMsg('No scene changes found. Try a lower sensitivity value.')
+      setClips(splitAtTimes(clips, cuts))
+      setAutoMsg(`Split at ${cuts.length} scene change${cuts.length === 1 ? '' : 's'}. Delete clips you do not want, or reorder them.`)
+    } catch (e) {
+      setAutoMsg(`Scan failed: ${e.message}`)
+    } finally {
+      setAutoBusy(null)
+    }
+  }
+
   const titles = edit.titles || []
   const setTitles = (next) => setEdit((e) => ({ ...e, titles: next }))
+
+  if (live) return <p className="muted">Editing needs a video file. Record or open a file to cut it.</p>
 
   return (
     <div className="stack">
@@ -56,6 +116,52 @@ export default function ClipsPanel({ edit, setEdit, duration, time, range, previ
           {clips.length} clip{clips.length === 1 ? '' : 's'} · {formatClock(totalDuration(clips))} of {formatClock(duration)}
           {hasRange ? '' : ' · Set in/out points (I / O) to trim or cut a range.'}
         </p>
+      </fieldset>
+      <fieldset disabled={disabled || !!autoBusy}>
+        <legend>Auto cuts</legend>
+        <div className="grid2">
+          <Slider label="Silence level" value={auto.threshold} min={1} max={15} unit="%" def={4} onChange={(v) => setAuto((a) => ({ ...a, threshold: v }))} />
+          <Slider
+            label="Min silence"
+            value={auto.minSilence}
+            min={0.3}
+            max={3}
+            step={0.1}
+            unit="s"
+            def={0.6}
+            onChange={(v) => setAuto((a) => ({ ...a, minSilence: v }))}
+          />
+        </div>
+        <div className="row wrap gap-s">
+          <button className="btn secondary sm" onClick={removeSilences} title="Cut out quiet stretches, keeping a little breathing room around speech">
+            Remove silences
+          </button>
+          <button className="btn secondary sm" onClick={splitScenes} title="Scan the picture and split the clip wherever the scene changes">
+            Split at scene changes
+          </button>
+        </div>
+        <Slider
+          label="Scene sensitivity (lower finds more)"
+          value={auto.sceneSens}
+          min={5}
+          max={40}
+          def={14}
+          onChange={(v) => setAuto((a) => ({ ...a, sceneSens: v }))}
+        />
+        {autoBusy && (
+          <div className="row wrap gap-s" aria-live="polite">
+            <progress max="1" value={autoBusy.p} />
+            <span className="muted small">{autoBusy.label}</span>
+            <button className="btn secondary sm" onClick={() => (cancelAuto.current = true)}>
+              Cancel
+            </button>
+          </div>
+        )}
+        {autoMsg && (
+          <p className="muted small" role="status">
+            {autoMsg}
+          </p>
+        )}
       </fieldset>
 
       <ol className="clip-list" aria-label="Clips in playback order">

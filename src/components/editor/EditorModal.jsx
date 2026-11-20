@@ -32,6 +32,7 @@ import {
   mapObject,
 } from './editorCore'
 import CurveEditor from '../CurveEditor'
+import { detectBars } from '../../lib/analysis'
 import UpscaleDialog from '../UpscaleDialog'
 import { enhanceCanvas, UPSCALE_CHOICES } from '../../lib/enhanceClient'
 import { ENHANCE_TOOLS } from '../../lib/enhance'
@@ -768,6 +769,17 @@ export default function EditorModal({ shot, onClose, selected }) {
     setSelId(null)
     requestAnimationFrame(() => fitZoom(g.base))
   }
+  /** Trim letterbox/pillarbox black bars found on the current image. */
+  function autoCropBars() {
+    const r = detectBars(doc.base)
+    if (!r) return toast('No black bars found on this image')
+    const W = doc.base.width,
+      H = doc.base.height
+    const box = { x: Math.round(r.x * W), y: Math.round(r.y * H), w: Math.round(r.w * W), h: Math.round(r.h * H) }
+    applyGeometry('Auto-crop bars', (d) => geometry.crop(d, box), { type: 'crop', x: r.x, y: r.y, w: r.w, h: r.h })
+    setCrop(null)
+  }
+
   function applyCrop() {
     if (!crop || crop.w < 2 || crop.h < 2) return
     const W = doc.base.width,
@@ -1771,6 +1783,9 @@ export default function EditorModal({ shot, onClose, selected }) {
                     Smart is instant and faithful. AI (ESRGAN) rebuilds texture and edges and runs on your graphics card; nothing is uploaded. Now {W} × {H}px.
                   </small>
                 </fieldset>
+                <button className="btn secondary sm" onClick={autoCropBars} disabled={!!busy} title="Trim black letterbox or pillarbox bars">
+                  Auto-crop black bars
+                </button>
                 <small className="muted">Each step is in History, so you can undo it or hold “Original” to compare.</small>
               </div>
             )}

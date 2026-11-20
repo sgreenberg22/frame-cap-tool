@@ -463,7 +463,57 @@ export function autoEnhance(img, strength = 1) {
   return img
 }
 
+/** Cumulative distribution (0..1, 256 bins) of each RGB channel, ignoring transparent pixels. */
+export function channelCdfs(img) {
+  const h = [new Float64Array(256), new Float64Array(256), new Float64Array(256)]
+  const d = img.data
+  let n = 0
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 8) continue
+    h[0][d[i]]++
+    h[1][d[i + 1]]++
+    h[2][d[i + 2]]++
+    n++
+  }
+  return h.map((hist) => {
+    const cdf = new Float32Array(256)
+    let acc = 0
+    for (let k = 0; k < 256; k++) {
+      acc += hist[k]
+      cdf[k] = n ? acc / n : k / 255
+    }
+    return cdf
+  })
+}
+
+/** Histogram matching: make each channel of `img` follow the distribution described by `refCdfs`. */
+export function colorMatch(img, refCdfs, strength = 1) {
+  const src = channelCdfs(img)
+  // Compare mid-points of each histogram step. With flat-colour images (screenshots, test charts)
+  // whole plateaus share one value, and using the step's edge would overshoot.
+  const mid = (cdf) => Float32Array.from(cdf, (v, k) => ((k ? cdf[k - 1] : 0) + v) / 2)
+  const luts = src.map((cdf, c) => {
+    const lut = new Uint8ClampedArray(256)
+    const sMid = mid(cdf)
+    const rMid = mid(refCdfs[c])
+    let j = 0
+    for (let k = 0; k < 256; k++) {
+      while (j < 255 && rMid[j] < sMid[k]) j++
+      lut[k] = Math.round(k + (j - k) * strength)
+    }
+    return lut
+  })
+  const out = new Uint8ClampedArray(img.data)
+  for (let i = 0; i < out.length; i += 4) {
+    out[i] = luts[0][out[i]]
+    out[i + 1] = luts[1][out[i + 1]]
+    out[i + 2] = luts[2][out[i + 2]]
+  }
+  return { data: out, width: img.width, height: img.height }
+}
+
 export const ENHANCE_OPS = {
+  colorMatch: (img, p) => colorMatch(img, p.refCdfs, p.strength ?? 1),
   autoEnhance: (img, p) => autoEnhance(img, p.strength ?? 1),
   autoTone: (img, p) => autoTone(img, p.strength ?? 1),
   autoWhiteBalance: (img, p) => autoWhiteBalance(img, p.strength ?? 1),

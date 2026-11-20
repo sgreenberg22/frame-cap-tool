@@ -1,4 +1,17 @@
-import { autoTone, autoWhiteBalance, cas, deinterlace, denoise, resizeLanczos, runOps, sharpen, smartUpscale, stackFrames } from './enhance'
+import {
+  autoTone,
+  autoWhiteBalance,
+  cas,
+  channelCdfs,
+  colorMatch,
+  deinterlace,
+  denoise,
+  resizeLanczos,
+  runOps,
+  sharpen,
+  smartUpscale,
+  stackFrames,
+} from './enhance'
 
 const make = (w, h, fn) => {
   const data = new Uint8ClampedArray(w * h * 4)
@@ -83,5 +96,26 @@ describe('enhance', () => {
     const img = make(8, 8, () => [10, 20, 30, 255])
     expect(runOps(img, [{ op: 'smartUpscale', scale: 2 }, { op: 'sharpen' }]).width).toBe(16)
     expect(() => runOps(img, [{ op: 'nope' }])).toThrow()
+  })
+})
+
+describe('colorMatch', () => {
+  it('moves a dark, warm image toward the look of a bright, cool reference', () => {
+    const ref = make(32, 32, (x) => [100 + x * 4, 150 + x * 3, 200 + x, 255]) // bright, blue-ish ramp
+    const dark = make(32, 32, (x) => [10 + x * 3, 5 + x * 2, 3 + x, 255]) // dark ramp
+    const out = colorMatch(dark, channelCdfs(ref))
+    const mean = (img, c) => {
+      let t = 0
+      for (let i = c; i < img.data.length; i += 4) t += img.data[i]
+      return t / (img.data.length / 4)
+    }
+    for (const c of [0, 1, 2]) expect(Math.abs(mean(out, c) - mean(ref, c))).toBeLessThan(Math.abs(mean(dark, c) - mean(ref, c)) * 0.2)
+  })
+  it('is a no-op against itself and respects strength 0', () => {
+    const img = make(16, 16, (x, y) => [x * 15, y * 15, (x + y) * 7, 255])
+    const same = colorMatch(img, channelCdfs(img))
+    const diff = same.data.reduce((a, v, i) => a + Math.abs(v - img.data[i]), 0) / img.data.length
+    expect(diff).toBeLessThan(6)
+    expect([...colorMatch(img, channelCdfs(make(16, 16, () => [200, 10, 10, 255])), 0).data]).toEqual([...img.data])
   })
 })

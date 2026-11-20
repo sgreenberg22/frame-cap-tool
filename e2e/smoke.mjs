@@ -108,6 +108,12 @@ try {
   const dims2 = (await page.locator('.thumb').first().getAttribute('title')).split('\n')[1]
   dims2.startsWith('1920×1080') ? ok(`upscale dialog hit exact size (${dims2})`) : fail(`upscale dialog result: ${dims2}`)
 
+  // Sharpness scoring and sort
+  await page.selectOption('#gsort', 'sharp')
+  await page.waitForFunction(() => document.querySelectorAll('.thumb .score').length >= 2, null, { timeout: 30000 })
+  ok('sharpness scores shown')
+  await page.selectOption('#gsort', 'custom')
+
   await page.locator('.thumb').first().getByRole('button', { name: /^Edit/ }).click()
   const canvas = page.locator('.editor-canvas.ink-overlay')
   await canvas.waitFor()
@@ -140,6 +146,18 @@ try {
   await page.reload()
   await page.waitForFunction(() => document.querySelectorAll('.thumb').length === 5, null, { timeout: 5000 })
   ok('frames persist across reload')
+
+  // Auto cuts: scan the sample clip for scene changes (finds none, but must report cleanly)
+  await page.goto(BASE + '/studio')
+  await page
+    .getByRole('button', { name: 'Try a sample clip' })
+    .click()
+    .catch(() => {})
+  await page.waitForSelector('.player-wrap video', { timeout: 30000 })
+  await page.getByRole('tab', { name: 'Cut & edit' }).click()
+  await page.getByRole('button', { name: 'Split at scene changes' }).click()
+  await page.waitForSelector('[role=status]:has-text("scene")', { timeout: 60000 })
+  ok('auto cuts scan reports a result')
 
   // Fullscreen: the control bar must be present and usable inside the fullscreen element
   await page.goto(BASE + '/studio')

@@ -2899,3 +2899,18 @@ meter {
 .cmp-tag.r {
   right: 8px;
 }
+
+.thumb .score {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+}
+.thumb .score.low {
+  background: #c0392b;
+}

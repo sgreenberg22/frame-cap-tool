@@ -1,7 +1,7 @@
 # v2.1 improvement status
 
 Status of the 120 items in [V3-IMPROVEMENT-PROMPT.md](V3-IMPROVEMENT-PROMPT.md).
-**14 done · 5 partial · 101 not started.** Passes so far covered fullscreen, a few cross-cutting items and upscaling; the rest of the list is still open.
+**18 done · 6 partial · 96 not started.** Passes so far covered fullscreen, a few cross-cutting items and upscaling; the rest of the list is still open.
 
 | #   | Item                                             | Status  | Notes                                                                                                                                                                  |
 | --- | ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -15,10 +15,15 @@ Status of the 120 items in [V3-IMPROVEMENT-PROMPT.md](V3-IMPROVEMENT-PROMPT.md).
 | 11  | Landscape lock on fullscreen                     | Partial | Code path added; not tested on a real phone, and browsers without orientation lock ignore it.                                                                          |
 | 13  | Shortcut hint on entering fullscreen             | Done    |                                                                                                                                                                        |
 | 19  | Near-duplicate removal                           | Done    | Gallery → Enhance → Clean up. Fixed similarity threshold, confirm before delete; no review grid.                                                                       |
+| 20  | Sharpness score on frames                        | Partial | Gallery "Sharpest first" sort, a 0–100 badge per frame, and "Select blurry frames". "Best frames" capture did not change; no face or closed-eye checks.                |
 | 61  | Tile-based AI upscaling with progress and cancel | Done    | Tiles were already used; added Cancel, UI that stays responsive between tiles, and transparency kept on AI results. Cancel measured at 1.2 s on a no-GPU test machine. |
 | 62  | Prefer fast backend and show which one ran       | Partial | Shows the TensorFlow.js backend after an AI run. No WebGPU backend, no benchmark.                                                                                      |
+| 66  | Match colour between frames                      | Done    | Gallery → Enhance → Match colour to first selected (histogram matching, per channel).                                                                                  |
+| 67  | Auto-crop black bars                             | Done    | Button in the editor's Enhance tab (the Studio already had a crop-region version).                                                                                     |
 | 74  | Before/after preview for enhance tools           | Partial | Upscale dialog previews a centre crop with a split slider. Other enhance tools have no preview yet.                                                                    |
 | 75  | Enhance presets by content type                  | Partial | Upscale has Photo / Screenshot or UI / Old or noisy presets. No user-saved presets, no chains for other tools.                                                         |
+| 87  | Split at scene changes                           | Done    | Scans the video and splits the clip list at each cut; sensitivity slider and cancel.                                                                                   |
+| 88  | Silence removal                                  | Done    | Level and minimum length sliders; keeps a little room around speech. No filler-word detection.                                                                         |
 | 92  | Target file size for video export                | Partial | Bitrate solved from a size in MB, with Discord/email/WhatsApp/X presets. No per-platform resolution presets.                                                           |
 | 93  | Audio-only export                                | Partial | WAV only (cuts, speed, volume and fades applied). No M4A/MP3, no image-sequence ZIP.                                                                                   |
 | 109 | Command palette (Ctrl/⌘ K)                       | Done    | Navigation, Studio actions, themes, What's new; recent commands first.                                                                                                 |

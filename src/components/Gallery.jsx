@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../state/store'
 import { useT } from '../lib/i18n'
 import { formatClock } from '../lib/timecode'
@@ -9,14 +9,15 @@ import Modal from './Modal'
 import UpscaleDialog from './UpscaleDialog'
 import { blobToDrawable, canvasToBlob, makeThumb } from '../lib/capture'
 import { enhanceCanvas, stackCanvases, UPSCALE_CHOICES } from '../lib/enhanceClient'
-import { ENHANCE_TOOLS } from '../lib/enhance'
-import { signature, signatureDiff } from '../lib/analysis'
+import { ENHANCE_TOOLS, channelCdfs } from '../lib/enhance'
+import { sharpness, signature, signatureDiff } from '../lib/analysis'
 
 const SORTS = [
   ['custom', 'Custom order'],
   ['capture', 'Capture order'],
   ['time', 'Video time'],
   ['size', 'File size'],
+  ['sharp', 'Sharpest first'],
 ]
 
 export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnimate }) {
@@ -25,6 +26,8 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
   const { shots, removeShots, updateShot, reorderShot, duplicateShot, revertShot, toast, confirm, addShotRecords, clearShots, addShotsFromCanvases, settings } =
     app
   const [sort, setSort] = useState('custom')
+  const [scores, setScores] = useState({})
+  const [scoring, setScoring] = useState(false)
   const [onlyFav, setOnlyFav] = useState(false)
   const [tagFilter, setTagFilter] = useState('')
   const [query, setQuery] = useState('')
@@ -55,8 +58,48 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
     if (sort === 'capture') list = [...list].sort((a, b) => a.seq - b.seq)
     if (sort === 'time') list = [...list].sort((a, b) => a.time - b.time || a.seq - b.seq)
     if (sort === 'size') list = [...list].sort((a, b) => b.size - a.size)
+    if (sort === 'sharp') list = [...list].sort((a, b) => (scores[b.id]?.v ?? -1) - (scores[a.id]?.v ?? -1))
     return list
-  }, [shots, onlyFav, tagFilter, query, range, sort])
+  }, [shots, onlyFav, tagFilter, query, range, sort, scores])
+
+  /** Sharpness for every frame that has no score yet (cached by id + size, so edits re-score). */
+  const scoreAll = useCallback(async () => {
+    const todo = shots.filter((x) => scores[x.id]?.key !== `${x.id}:${x.size}`)
+    if (!todo.length) return
+    setScoring(true)
+    try {
+      const next = {}
+      for (const x of todo) {
+        const d = await blobToDrawable(x.blob)
+        next[x.id] = { key: `${x.id}:${x.size}`, v: sharpness(d) }
+        d.close?.()
+      }
+      setScores((p) => ({ ...p, ...next }))
+    } finally {
+      setScoring(false)
+    }
+  }, [shots, scores])
+  useEffect(() => {
+    if (sort === 'sharp') scoreAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort, shots.length])
+  const bestScore = useMemo(() => Math.max(1e-9, ...Object.values(scores).map((x) => x.v)), [scores])
+
+  async function selectBlurry() {
+    await scoreAll()
+    setScores((cur) => {
+      const vals = visible
+        .map((x) => cur[x.id]?.v)
+        .filter((v) => v != null)
+        .sort((a, b) => a - b)
+      if (vals.length < 2) return cur
+      const median = vals[Math.floor(vals.length / 2)]
+      const blurry = visible.filter((x) => (cur[x.id]?.v ?? Infinity) < median * 0.45).map((x) => x.id)
+      setSelected(new Set(blurry))
+      toast(blurry.length ? `Selected ${blurry.length} blurry frame${blurry.length > 1 ? 's' : ''}` : 'No clearly blurry frames found')
+      return cur
+    })
+  }
 
   const selectedShots = useMemo(() => visible.filter((s) => selected.has(s.id)), [visible, selected])
 
@@ -113,8 +156,8 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
   }
 
   /** Run enhancement ops over every selected frame. Originals are kept, so each frame can be reverted. */
-  async function enhanceSelected(ops, label, { signal, onProgress } = {}) {
-    const list = selectedShots
+  async function enhanceSelected(ops, label, { signal, onProgress, only } = {}) {
+    const list = only || selectedShots
     if (!list.length) return toast('Select one or more frames first', { kind: 'warn' })
     try {
       for (let i = 0; i < list.length; i++) {
@@ -167,6 +210,28 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
         removeShots(dupes)
     } catch (e) {
       toast(`Duplicate check failed: ${e.message}`, { kind: 'error' })
+    } finally {
+      setBusy('')
+    }
+  }
+
+  /** Make the other selected frames match the colour and tone of the first selected frame. */
+  async function matchColors() {
+    if (selectedShots.length < 2) return toast('Select two or more frames. The first one is the reference.', { kind: 'warn' })
+    const [ref, ...rest] = selectedShots
+    setBusy('Reading reference…')
+    try {
+      const c = await toCanvas(ref)
+      const small = document.createElement('canvas')
+      const k = Math.min(1, 512 / Math.max(c.width, c.height))
+      small.width = Math.max(1, Math.round(c.width * k))
+      small.height = Math.max(1, Math.round(c.height * k))
+      small.getContext('2d').drawImage(c, 0, 0, small.width, small.height)
+      const img = small.getContext('2d').getImageData(0, 0, small.width, small.height)
+      const refCdfs = channelCdfs(img)
+      await enhanceSelected([{ op: 'colorMatch', refCdfs }], 'Match colour', { only: rest })
+    } catch (e) {
+      if (e?.name !== 'AbortError') toast(`Match colour failed: ${e.message}`, { kind: 'error' })
     } finally {
       setBusy('')
     }
@@ -398,6 +463,7 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
           <label className="sr-only" htmlFor="gsort">
             Sort
           </label>
+          {scoring && <span className="muted small">Scoring…</span>}
           <select id="gsort" value={sort} onChange={(e) => setSort(e.target.value)}>
             {SORTS.map(([id, l]) => (
               <option key={id} value={id}>
@@ -526,6 +592,15 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
             ))}
             <span className="menu-head">Clean up</span>
             <button
+              title="Score every frame for sharpness and select the clearly blurry ones"
+              onClick={(e) => {
+                e.currentTarget.closest('details').open = false
+                selectBlurry()
+              }}
+            >
+              Select blurry frames
+            </button>
+            <button
               title="Find frames that look almost identical and delete the extras"
               onClick={(e) => {
                 e.currentTarget.closest('details').open = false
@@ -535,6 +610,15 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
               Remove near-duplicates
             </button>
             <span className="menu-head">Combine</span>
+            <button
+              title="Match the colour and brightness of the other selected frames to the first selected one"
+              onClick={(e) => {
+                e.currentTarget.closest('details').open = false
+                matchColors()
+              }}
+            >
+              Match colour to first selected
+            </button>
             <button
               title="Median of the selected frames: removes noise and moving specks from a static shot"
               onClick={(e) => {
@@ -606,6 +690,7 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
             <Thumb
               key={s.id}
               s={s}
+              score={scores[s.id] ? Math.round((scores[s.id].v / bestScore) * 100) : null}
               index={i}
               selected={selected.has(s.id)}
               onSelect={onSelect}
@@ -674,7 +759,7 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
   )
 }
 
-const Thumb = memo(function Thumb({ s, index, selected, onSelect, onOpen, onEdit, onSeek, draggable, onDragStart, onDropOn, onMove, onMenu }) {
+const Thumb = memo(function Thumb({ s, score, index, selected, onSelect, onOpen, onEdit, onSeek, draggable, onDragStart, onDropOn, onMove, onMenu }) {
   const [over, setOver] = useState(false)
   const label = `Frame ${index + 1} at ${formatClock(s.time)}${s.caption ? `: ${s.caption}` : ''}`
   return (
@@ -715,6 +800,11 @@ const Thumb = memo(function Thumb({ s, index, selected, onSelect, onOpen, onEdit
         aria-label={label}
       >
         <img src={s.thumbUrl || s.url} alt={label} loading="lazy" decoding="async" />
+        {score != null && (
+          <span className={`score ${score < 35 ? 'low' : ''}`} title="Sharpness relative to the sharpest frame">
+            {score}
+          </span>
+        )}
         {s.favorite && (
           <span className="star" aria-hidden="true">
             ★
