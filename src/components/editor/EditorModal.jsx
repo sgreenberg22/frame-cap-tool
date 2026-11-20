@@ -32,6 +32,7 @@ import {
   mapObject,
 } from './editorCore'
 import CurveEditor from '../CurveEditor'
+import UpscaleDialog from '../UpscaleDialog'
 import { enhanceCanvas, UPSCALE_CHOICES } from '../../lib/enhanceClient'
 import { ENHANCE_TOOLS } from '../../lib/enhance'
 
@@ -134,6 +135,7 @@ export default function EditorModal({ shot, onClose, selected }) {
   const clipboard = useRef(null)
   const [cloneSrc, setCloneSrc] = useState(null)
   const [strength, setStrength] = useState(1)
+  const [upscaleOpen, setUpscaleOpen] = useState(false)
   const gesture = useRef(null)
   const pointers = useRef(new Map())
 
@@ -728,11 +730,19 @@ export default function EditorModal({ shot, onClose, selected }) {
   }
 
   // ---------- Geometry ----------
-  async function runEnhance(ops, label) {
+  async function runEnhance(ops, label, { signal, onProgress } = {}) {
     if (!doc || busy) return
     setBusy(`${label}…`)
     try {
-      const out = await enhanceCanvas(doc.base, ops, (p) => setBusy(`${label} ${Math.round(p * 100)}%`))
+      const out = await enhanceCanvas(
+        doc.base,
+        ops,
+        (p) => {
+          setBusy(`${label} ${Math.round(p * 100)}%`)
+          onProgress?.(p)
+        },
+        signal,
+      )
       const sx = out.width / doc.base.width
       const sy = out.height / doc.base.height
       const objects = sx === 1 && sy === 1 ? doc.objects : doc.objects.map((o) => mapObject(o, (x, y) => [x * sx, y * sy], Math.sqrt(sx * sy)))
@@ -742,11 +752,13 @@ export default function EditorModal({ shot, onClose, selected }) {
         requestAnimationFrame(() => fitZoom(out))
       }
     } catch (e) {
-      toast(`${label} failed: ${e.message}`, { kind: 'error', timeout: 7000 })
+      if (e?.name !== 'AbortError') toast(`${label} failed: ${e.message}`, { kind: 'error', timeout: 7000 })
+      throw e
     } finally {
       setBusy('')
     }
   }
+  const runEnhanceQuiet = (ops, label) => runEnhance(ops, label).catch(() => {})
 
   function applyGeometry(label, fn, op) {
     if (!doc) return
@@ -1723,22 +1735,34 @@ export default function EditorModal({ shot, onClose, selected }) {
             )}
             {sideTab === 'enhance' && doc && (
               <div className="stack">
-                <button className="btn" onClick={() => runEnhance([{ op: 'autoEnhance', strength }], 'Auto enhance')} disabled={!!busy}>
+                <button className="btn" onClick={() => runEnhanceQuiet([{ op: 'autoEnhance', strength }], 'Auto enhance')} disabled={!!busy}>
                   ✨ Auto enhance
                 </button>
                 <Slider label="Strength" value={Math.round(strength * 100)} min={10} max={200} unit="%" def={100} onChange={(v) => setStrength(v / 100)} />
                 <div className="enhance-grid">
                   {ENHANCE_TOOLS.slice(1).map(([op, label, hint]) => (
-                    <button key={op} className="btn secondary sm" title={hint} onClick={() => runEnhance([{ op, strength }], label)} disabled={!!busy}>
+                    <button key={op} className="btn secondary sm" title={hint} onClick={() => runEnhanceQuiet([{ op, strength }], label)} disabled={!!busy}>
                       {label}
                     </button>
                   ))}
                 </div>
                 <fieldset>
                   <legend>Upscale</legend>
+                  <button className="btn" onClick={() => setUpscaleOpen(true)} disabled={!!busy}>
+                    Upscale… (preview, exact sizes)
+                  </button>
+                  {upscaleOpen && doc && (
+                    <UpscaleDialog
+                      width={doc.base.width}
+                      height={doc.base.height}
+                      getCanvas={async () => doc.base}
+                      onApply={({ ops, label, signal, onProgress }) => runEnhance(ops, label, { signal, onProgress })}
+                      onClose={() => setUpscaleOpen(false)}
+                    />
+                  )}
                   <div className="enhance-grid">
                     {UPSCALE_CHOICES.map(([id, label, ops, hint]) => (
-                      <button key={id} className="btn secondary sm" title={hint} onClick={() => runEnhance(ops, label)} disabled={!!busy}>
+                      <button key={id} className="btn secondary sm" title={hint} onClick={() => runEnhanceQuiet(ops, label)} disabled={!!busy}>
                         {label}
                       </button>
                     ))}

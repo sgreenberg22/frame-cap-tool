@@ -44,11 +44,19 @@ function toCanvas(image) {
   return c
 }
 
-export const MAX_OUTPUT_PIXELS = 40_000_000
+import { MAX_OUTPUT_PIXELS } from './upscalePlan'
+export { MAX_OUTPUT_PIXELS }
+
+let lastBackend = ''
+/** Name of the TensorFlow.js backend used by the last AI upscale (webgl, cpu, ...), or ''. */
+export const aiBackend = () => lastBackend
+
+const abortError = () => Object.assign(new Error('Cancelled'), { name: 'AbortError' })
 
 let upscalers = {}
 /** ESRGAN super-resolution. The model and TensorFlow.js are served from this site and loaded only on first use. */
-export async function aiUpscale(canvas, scale = 2, onProgress) {
+export async function aiUpscale(canvas, scale = 2, onProgress, signal) {
+  if (signal?.aborted) throw abortError()
   if (canvas.width * canvas.height * scale * scale > MAX_OUTPUT_PIXELS) throw new Error('Result would be too large. Use 2× or crop first.')
   if (!upscalers[scale]) {
     const [{ default: Upscaler }, def] = await Promise.all([
@@ -57,7 +65,32 @@ export async function aiUpscale(canvas, scale = 2, onProgress) {
     ])
     upscalers[scale] = new Upscaler({ model: { ...def.default, path: `/models/esrgan-slim/x${scale}/model.json` } })
   }
-  const src = await upscalers[scale].upscale(canvas, { output: 'base64', patchSize: 64, padding: 4, progress: (p) => onProgress?.(p) })
+  const hasAlpha = (() => {
+    const d = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height).data
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 255) return true
+    return false
+  })()
+  let src
+  try {
+    src = await upscalers[scale].upscale(canvas, {
+      output: 'base64',
+      patchSize: 64,
+      padding: 4,
+      awaitNextFrame: true,
+      signal,
+      progress: (p) => onProgress?.(p),
+    })
+  } catch (e) {
+    // UpscalerJS reports cancellation as a generic error; surface it as a normal abort.
+    if (signal?.aborted) throw abortError()
+    throw e
+  }
+  if (signal?.aborted) throw abortError()
+  try {
+    lastBackend = (await import('@tensorflow/tfjs')).getBackend() || ''
+  } catch {
+    lastBackend = ''
+  }
   const img = new Image()
   await new Promise((res, rej) => {
     img.onload = res
@@ -69,7 +102,18 @@ export async function aiUpscale(canvas, scale = 2, onProgress) {
   out.height = img.naturalHeight
   const ctx = out.getContext('2d')
   ctx.drawImage(img, 0, 0)
-  // The model works on RGB; carry the original alpha across (scaled) if the source had transparency.
+  if (hasAlpha) {
+    // The model works on RGB only. Carry the original transparency across, enlarged smoothly.
+    const a = document.createElement('canvas')
+    a.width = out.width
+    a.height = out.height
+    const actx = a.getContext('2d')
+    actx.imageSmoothingQuality = 'high'
+    actx.drawImage(canvas, 0, 0, out.width, out.height)
+    ctx.globalCompositeOperation = 'destination-in'
+    ctx.drawImage(a, 0, 0)
+    ctx.globalCompositeOperation = 'source-over'
+  }
   return out
 }
 
@@ -77,7 +121,7 @@ export async function aiUpscale(canvas, scale = 2, onProgress) {
  * Apply ops to a canvas and return a new canvas.
  * ops: [{op:'autoEnhance', strength}, {op:'smartUpscale', scale}, {op:'aiUpscale', scale}, ...]
  */
-export async function enhanceCanvas(canvas, ops, onProgress) {
+export async function enhanceCanvas(canvas, ops, onProgress, signal) {
   let cur = canvas
   let batch = []
   const total = ops.length
@@ -85,7 +129,9 @@ export async function enhanceCanvas(canvas, ops, onProgress) {
   const flush = async () => {
     if (!batch.length) return
     const up = batch.reduce((m, o) => (o.op === 'smartUpscale' ? m * (o.scale || 2) : m), 1)
-    if (cur.width * cur.height * up * up > MAX_OUTPUT_PIXELS) throw new Error('Result would be too large. Use a smaller scale or crop first.')
+    const resized = batch.filter((o) => o.op === 'resize').reduce((m, o) => Math.max(m, o.width * o.height), 0)
+    if (Math.max(cur.width * cur.height * up * up, resized) > MAX_OUTPUT_PIXELS)
+      throw new Error('Result would be too large. Use a smaller scale or crop first.')
     const img = toImageData(cur)
     const n = batch.length
     const base = done
@@ -97,14 +143,16 @@ export async function enhanceCanvas(canvas, ops, onProgress) {
     cur = toCanvas(out)
   }
   for (const o of ops) {
+    if (signal?.aborted) throw abortError()
     if (o.op === 'aiUpscale') {
       await flush()
       const base = done
-      cur = await aiUpscale(cur, o.scale || 2, (p) => onProgress?.((base + p) / total))
+      cur = await aiUpscale(cur, o.scale || 2, (p) => onProgress?.((base + p) / total), signal)
       done++
     } else batch.push(o)
   }
   await flush()
+  if (signal?.aborted) throw abortError()
   onProgress?.(1)
   return cur
 }

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Upscale dialog** (Frames → Enhance → Upscale…, and the editor's Enhance tab). Pick what the image is (photo, screenshot/UI, old or noisy), Smart or AI, and an exact size: 2×, 3×, 4× or fit to 1080p, 1440p or 4K. Shows the plan, warns about poor combinations and previews a centre crop with a before/after slider. Noisy sources are denoised before enlarging; UI uses stronger edge sharpening.
+- AI upscaling can be cancelled, keeps the page responsive between tiles, preserves transparency and reports which backend ran.
+
 - **Black-screen fixes.** A video the browser cannot decode (for example iPhone HEVC, ProRes, AV1 on some machines) now shows a permanent explanation with fix steps instead of a black player. If GPU rendering produces a black picture while the video has one, the player detects it and switches to compatibility mode automatically (captures too).
 
 - **Hosting moved to Cloudflare Pages.** Added `public/_headers` (CSP, security headers, caching), removed the Fly.io config and deploy jobs, renamed the workflow to `ci.yml`, and pointed canonical/sitemap URLs at `frame-cap-tool.pages.dev`.

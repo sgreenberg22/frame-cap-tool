@@ -476,6 +476,7 @@ export const ENHANCE_OPS = {
   deinterlace: (img) => deinterlace(img),
   smartUpscale: (img, p) => smartUpscale(img, p.scale ?? 2, p.sharpness ?? 0.45),
   resize: (img, p) => resizeLanczos(img, p.width, p.height),
+  cas: (img, p) => cas(img, p.sharpness ?? 0.5),
 }
 
 /** Run a list of ops ({op, ...params}) in order. */

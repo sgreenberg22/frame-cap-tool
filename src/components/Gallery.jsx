@@ -6,6 +6,7 @@ import { formatBytes } from '../lib/storage'
 import { canShareFiles, copyImageToClipboard, downloadBlob, downloadText, shareFiles, zipBlobs } from '../lib/download'
 import Lightbox from './Lightbox'
 import Modal from './Modal'
+import UpscaleDialog from './UpscaleDialog'
 import { blobToDrawable, canvasToBlob, makeThumb } from '../lib/capture'
 import { enhanceCanvas, stackCanvases, UPSCALE_CHOICES } from '../lib/enhanceClient'
 import { ENHANCE_TOOLS } from '../lib/enhance'
@@ -34,6 +35,7 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
   const [compare, setCompare] = useState(null)
   const [meta, setMeta] = useState(null)
   const [busy, setBusy] = useState('')
+  const [upscaleOpen, setUpscaleOpen] = useState(false)
   const anchor = useRef(null)
   const dragId = useRef(null)
 
@@ -111,19 +113,30 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
   }
 
   /** Run enhancement ops over every selected frame. Originals are kept, so each frame can be reverted. */
-  async function enhanceSelected(ops, label) {
+  async function enhanceSelected(ops, label, { signal, onProgress } = {}) {
     const list = selectedShots
     if (!list.length) return toast('Select one or more frames first', { kind: 'warn' })
     try {
       for (let i = 0; i < list.length; i++) {
+        if (signal?.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError' })
         setBusy(`${label} ${i + 1}/${list.length}…`)
-        const out = await enhanceCanvas(await toCanvas(list[i]), ops, (p) => setBusy(`${label} ${i + 1}/${list.length} · ${Math.round(p * 100)}%`))
+        const out = await enhanceCanvas(
+          await toCanvas(list[i]),
+          ops,
+          (p) => {
+            setBusy(`${label} ${i + 1}/${list.length} · ${Math.round(p * 100)}%`)
+            onProgress?.((i + p) / list.length)
+          },
+          signal,
+        )
         const blob = await canvasToBlob(out, list[i].type || 'image/png', settings.imageQuality)
         await updateShot(list[i].id, { blob, thumbBlob: await makeThumb(out), width: out.width, height: out.height })
       }
       toast(`${label}: ${list.length} frame${list.length > 1 ? 's' : ''} updated. Use ⋯ → Revert to undo.`)
     } catch (e) {
-      toast(`${label} failed: ${e.message}`, { kind: 'error', timeout: 7000 })
+      if (e?.name === 'AbortError') toast('Cancelled. Frames already finished keep the change; use ⋯ → Revert to undo.', { kind: 'warn' })
+      else toast(`${label} failed: ${e.message}`, { kind: 'error', timeout: 7000 })
+      throw e
     } finally {
       setBusy('')
     }
@@ -482,20 +495,30 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
                 title={hint}
                 onClick={(e) => {
                   e.currentTarget.closest('details').open = false
-                  enhanceSelected([{ op }], label)
+                  enhanceSelected([{ op }], label).catch(() => {})
                 }}
               >
                 {label}
               </button>
             ))}
             <span className="menu-head">Upscale</span>
+            <button
+              title="Choose content type, method and exact size, with a before/after preview"
+              onClick={(e) => {
+                e.currentTarget.closest('details').open = false
+                if (!selectedShots.length) return toast('Select one or more frames first', { kind: 'warn' })
+                setUpscaleOpen(true)
+              }}
+            >
+              Upscale…
+            </button>
             {UPSCALE_CHOICES.map(([id, label, ops, hint]) => (
               <button
                 key={id}
                 title={hint}
                 onClick={(e) => {
                   e.currentTarget.closest('details').open = false
-                  enhanceSelected(ops, label)
+                  enhanceSelected(ops, label).catch(() => {})
                 }}
               >
                 {label}
@@ -599,6 +622,16 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
         </div>
       )}
 
+      {upscaleOpen && selectedShots.length > 0 && (
+        <UpscaleDialog
+          width={selectedShots[0].width}
+          height={selectedShots[0].height}
+          count={selectedShots.length}
+          getCanvas={() => toCanvas(selectedShots[0])}
+          onApply={({ ops, label, signal, onProgress }) => enhanceSelected(ops, label, { signal, onProgress })}
+          onClose={() => setUpscaleOpen(false)}
+        />
+      )}
       {lightbox && lbIndex >= 0 && (
         <Lightbox
           shots={visible}

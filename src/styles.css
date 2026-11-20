@@ -2851,3 +2851,51 @@ meter {
 .decode-error ul {
   padding-left: 1.1rem;
 }
+
+.upscale-preview {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.cmp {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #111;
+  display: grid;
+  place-items: center;
+}
+.cmp.empty {
+  gap: 6px;
+  color: #fff;
+}
+.cmp img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cmp-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+}
+.cmp-tag {
+  position: absolute;
+  top: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+.cmp-tag.l {
+  left: 8px;
+}
+.cmp-tag.r {
+  right: 8px;
+}

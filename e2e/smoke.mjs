@@ -96,6 +96,18 @@ try {
   const dims = (await page.locator('.thumb').first().getAttribute('title')).split('\n')[1]
   dims.startsWith('1280×720') ? ok(`enhanced and upscaled (${dims})`) : fail(`upscale did not apply: ${dims}`)
 
+  // Upscale dialog: exact target size with a preview
+  await page.locator('summary', { hasText: 'Enhance' }).click()
+  await page.getByRole('button', { name: 'Upscale…' }).click()
+  const upDlg = page.getByRole('dialog', { name: /Upscale/ })
+  await upDlg.getByRole('radio', { name: 'Fit 1080p' }).click()
+  await page.waitForSelector('.cmp img[alt="After"]', { timeout: 15000 })
+  await upDlg.getByRole('button', { name: 'Upscale', exact: true }).click()
+  await upDlg.waitFor({ state: 'detached', timeout: 60000 })
+  await page.waitForTimeout(500)
+  const dims2 = (await page.locator('.thumb').first().getAttribute('title')).split('\n')[1]
+  dims2.startsWith('1920×1080') ? ok(`upscale dialog hit exact size (${dims2})`) : fail(`upscale dialog result: ${dims2}`)
+
   await page.locator('.thumb').first().getByRole('button', { name: /^Edit/ }).click()
   const canvas = page.locator('.editor-canvas.ink-overlay')
   await canvas.waitFor()
