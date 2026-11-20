@@ -4,7 +4,7 @@ Paste everything below the line into a Claude Code session opened on a clone of 
 
 ---
 
-You are working on **FrameCapture** (`sgreenberg22/frame-cap-tool`), a browser-only video frame capture, GIF and photo/video editing tool: React 18 + Vite 5 SPA, WebGL2 filter pipeline with CPU fallback, WebCodecs video export, worker-based enhancement and TensorFlow.js upscaling, IndexedDB storage, nginx on Fly.io. Read `readme.md`, `docs/ARCHITECTURE.md` and `docs/IMPROVEMENTS.md` first.
+You are working on **FrameCapture** (`sgreenberg22/frame-cap-tool`), a browser-only video frame capture, GIF and photo/video editing tool: React 18 + Vite 5 SPA, WebGL2 filter pipeline with CPU fallback, WebCodecs video export, worker-based enhancement and TensorFlow.js upscaling, IndexedDB storage, hosted on Cloudflare Pages (headers in `public/_headers`). Read `readme.md`, `docs/ARCHITECTURE.md` and `docs/IMPROVEMENTS.md` first.
 
 ## Mission
 
@@ -19,7 +19,7 @@ Implement as many of the 120 items below as you can, in priority order within ea
 5. **Accessibility:** every control keyboard-reachable, labelled, with visible focus; respect `prefers-reduced-motion`; contrast at least AA.
 6. Do not remove existing features or change stored data formats without a migration.
 7. Update `readme.md`, `CHANGELOG.md` (bump to 2.1.0), the in-app Help page and the keyboard-shortcuts overlay. Write `docs/IMPROVEMENTS-V2.1.md` with a status table (Done / Partial / Skipped, with reasons).
-8. If something needs the owner (for example the `FLY_API_TOKEN` secret), say so in the report rather than blocking.
+8. If something needs the owner (for example a Cloudflare Pages setting), say so in the report rather than blocking.
 
 ## Already done (do not redo)
 

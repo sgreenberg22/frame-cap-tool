@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Hosting moved to Cloudflare Pages.** Added `public/_headers` (CSP, security headers, caching), removed the Fly.io config and deploy jobs, renamed the workflow to `ci.yml`, and pointed canonical/sitemap URLs at `frame-cap-tool.pages.dev`.
+
 - **Fullscreen controls.** Fullscreen now shows an auto-hiding control bar: seek bar, play/pause, frame and 5 s steps, speed, volume, capture, batch, marker, in/out, A-B loop, split, picture-in-picture and exit, plus a capture counter and inline "Captured" confirmation.
 - Added `docs/V3-IMPROVEMENT-PROMPT.md`, a 120-item prompt for the next round of improvements.
 

@@ -12,7 +12,7 @@ A video editor, frame grabber, photo editor, upscaler and GIF maker that runs en
 
 **Nothing is uploaded.** There is no server-side processing, no accounts and no analytics. Even the AI upscaler runs on your device. Frames are kept in your browser (IndexedDB) until you delete them.
 
-Live: https://frame-cap-tool.fly.dev
+Live: https://frame-cap-tool.pages.dev
 
 ## Features
 
@@ -103,11 +103,12 @@ Commits run ESLint and Prettier on staged files (husky + lint-staged).
 
 ## Deploy
 
-Pushing to `main` runs lint, tests, build, bundle-size check and a Playwright smoke test, then deploys to Fly.io (`flyctl deploy --remote-only`).
+Hosting is Cloudflare Pages, connected to this repo. Every push to `main` is built and deployed by Cloudflare; GitHub Actions (`.github/workflows/ci.yml`) runs lint, tests, build, bundle-size check and a Playwright smoke test.
 
-- The repo needs a `FLY_API_TOKEN` secret (`fly tokens create deploy -a frame-cap-tool`). Without it the deploy step is skipped with a warning.
-- The image is a static build served by unprivileged nginx on port 8080 with SPA fallback, gzip, immutable asset caching, a strict CSP and a `/healthz` endpoint.
-- A staging deploy (`fly.staging.toml`, app `frame-cap-tool-staging`) can be run manually from the Actions tab (workflow dispatch, target "staging") once that Fly app exists.
+- Cloudflare Pages settings: build command `npm run build`, output directory `dist`, Node version from `.nvmrc`.
+- `public/_headers` sets the strict CSP, security headers and caching (immutable hashed assets, cached AI model files, always-revalidated service worker). Cloudflare serves `index.html` for unknown paths, so deep links like `/studio` work on refresh.
+- Each deployment also has its own `<hash>.frame-cap-tool.pages.dev` preview URL; that URL is a snapshot of one commit, not the live site.
+- The `Dockerfile` and `deploy/nginx.conf` remain for anyone who wants to self-host the static build with nginx.
 
 ## Browser support
 
