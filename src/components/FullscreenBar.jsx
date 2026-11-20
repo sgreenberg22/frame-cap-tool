@@ -41,12 +41,32 @@ export default function FullscreenBar({
   shotCount,
   live,
   canSplit,
+  recent = [],
+  onOpenShot,
+  markers = [],
+  onSeekMarker,
+  overlays,
+  setOverlays,
+  setRotate,
+  flipH,
+  setFlipH,
+  flipV,
+  setFlipV,
 }) {
   const [visible, setVisible] = useState(true)
   const [flash, setFlash] = useState('')
   const timer = useRef(null)
   const hovering = useRef(false)
   const lastCount = useRef(shotCount)
+  const root = useRef(null)
+  const [drawer, setDrawer] = useState(false)
+  const [count, setCount] = useState(0)
+  const [hint, setHint] = useState(true)
+  const [ripple, setRipple] = useState(null)
+  const live_ = useRef(live)
+  live_.current = live
+  const fn = useRef({})
+  fn.current = { onPlayPause, onJump }
 
   const wake = useCallback(() => {
     setVisible(true)
@@ -65,6 +85,41 @@ export default function FullscreenBar({
       clearTimeout(timer.current)
     }
   }, [wake])
+
+  // Double-click / double-tap on the video: centre toggles play, edges skip 5 s.
+  useEffect(() => {
+    const host = root.current?.parentElement
+    if (!host) return
+    const onDbl = (e) => {
+      if (e.target.closest?.('.fs-bar button, .fs-bar input, .fs-drawer, .fs-strip')) return
+      const r = host.getBoundingClientRect()
+      const x = (e.clientX - r.left) / r.width
+      let kind = 'play'
+      if (x < 0.3 && !live_.current) kind = 'back'
+      else if (x > 0.7 && !live_.current) kind = 'fwd'
+      if (kind === 'play') fn.current.onPlayPause()
+      else fn.current.onJump(kind === 'back' ? -5 : 5)
+      setRipple({ kind, key: Date.now() })
+      setTimeout(() => setRipple(null), 600)
+    }
+    host.addEventListener('dblclick', onDbl)
+    return () => host.removeEventListener('dblclick', onDbl)
+  }, [])
+
+  useEffect(() => {
+    const id = setTimeout(() => setHint(false), 2500)
+    return () => clearTimeout(id)
+  }, [])
+
+  // Self-timer capture
+  useEffect(() => {
+    if (!count) return
+    const id = setTimeout(() => {
+      if (count === 1) onCapture()
+      setCount(count - 1)
+    }, 1000)
+    return () => clearTimeout(id)
+  }, [count, onCapture])
 
   // Fullscreen has no toast layer, so confirm captures inline.
   useEffect(() => {
@@ -88,6 +143,15 @@ export default function FullscreenBar({
       className={`fs-bar ${visible ? 'show' : ''}`}
       role="toolbar"
       aria-label="Fullscreen controls"
+      ref={root}
+      onFocus={() => {
+        hovering.current = true
+        wake()
+      }}
+      onBlur={() => {
+        hovering.current = false
+        wake()
+      }}
       onMouseEnter={() => {
         hovering.current = true
         wake()
@@ -102,14 +166,56 @@ export default function FullscreenBar({
           {flash}
         </div>
       )}
+      {hint && (
+        <div className="fs-hint" role="note">
+          Space play · ←/→ frame · S capture · M marker · double-click to play, double-tap edges to skip · Esc exit
+        </div>
+      )}
+      {count > 0 && (
+        <div className="fs-count" role="status" aria-live="assertive">
+          {count}
+        </div>
+      )}
+      {ripple && (
+        <div className={`fs-ripple ${ripple.kind}`} key={ripple.key} aria-hidden="true">
+          {ripple.kind === 'play' ? (playing ? '▶' : '❚❚') : ripple.kind === 'back' ? '«5' : '5»'}
+        </div>
+      )}
       <div className="fs-top">
         <button className="btn icon secondary" onClick={onExit} aria-label="Exit fullscreen" title="Exit fullscreen (Esc or F)">
           ✕
         </button>
         <span className="spacer" />
+        <button className={`btn secondary sm ${drawer ? 'active' : ''}`} onClick={() => setDrawer((d) => !d)} aria-pressed={drawer} title="Markers">
+          ⚑ {markers.length}
+        </button>
         <span className="fs-badge">{shotCount} captured</span>
       </div>
+      {drawer && (
+        <aside className="fs-drawer" aria-label="Markers">
+          <strong>Markers</strong>
+          {markers.length === 0 && <p className="muted">No markers yet. Press M to add one.</p>}
+          <ul>
+            {markers.map((m) => (
+              <li key={m.id}>
+                <button onClick={() => onSeekMarker(m)}>
+                  {m.label} · {formatClock(m.time, { ms: false })}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )}
       <div className="fs-bottom">
+        {recent.length > 0 && (
+          <div className="fs-strip" aria-label="Recent captures">
+            {recent.map((r) => (
+              <button key={r.id} onClick={() => onOpenShot(r.id)} title={`Open frame at ${formatClock(r.time)}`}>
+                <img src={r.thumbUrl || r.url} alt={`Frame at ${formatClock(r.time)}`} />
+              </button>
+            ))}
+          </div>
+        )}
         <input
           className="fs-scrub"
           type="range"
@@ -164,6 +270,9 @@ export default function FullscreenBar({
           <button className="btn capture" onClick={onCapture} title="Capture frame (S)">
             <span aria-hidden="true">◉</span> Capture
           </button>
+          <button className="btn secondary sm" onClick={() => setCount(count ? 0 : 3)} title="Capture after a 3-2-1 countdown">
+            ⏱ {count ? 'Cancel' : 'Timer'}
+          </button>
           <button className={`btn secondary sm ${batchRunning ? 'active' : ''}`} onClick={onBatch} title="Run batch capture (B)">
             {batchRunning ? 'Stop batch' : 'Batch'}
           </button>
@@ -192,6 +301,34 @@ export default function FullscreenBar({
             </button>
           )}
           <span className="spacer" />
+          <button
+            className={`btn secondary sm ${overlays.thirds || overlays.safe ? 'active' : ''}`}
+            onClick={() =>
+              setOverlays((o) => (!o.thirds && !o.safe ? { ...o, thirds: true } : o.thirds ? { ...o, thirds: false, safe: true } : { ...o, safe: false }))
+            }
+            title="Cycle guides: thirds, safe area, off"
+          >
+            ▦ Guides
+          </button>
+          <button className="btn icon secondary" onClick={() => setRotate((r) => (r + 90) % 360)} aria-label="Rotate 90 degrees" title="Rotate 90°">
+            ↻
+          </button>
+          <button
+            className={`btn icon secondary ${flipH ? 'active' : ''}`}
+            onClick={() => setFlipH((f) => !f)}
+            aria-label="Flip horizontally"
+            title="Flip horizontally"
+          >
+            ⇆
+          </button>
+          <button
+            className={`btn icon secondary ${flipV ? 'active' : ''}`}
+            onClick={() => setFlipV((f) => !f)}
+            aria-label="Flip vertically"
+            title="Flip vertically"
+          >
+            ⇅
+          </button>
           {pipSupported && (
             <button className="btn icon secondary" onClick={onPip} aria-label="Picture in picture" title="Picture-in-picture">
               ⧉

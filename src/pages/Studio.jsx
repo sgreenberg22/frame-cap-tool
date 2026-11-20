@@ -1297,6 +1297,21 @@ export default function Studio() {
                   onExit={fullscreen}
                   shotCount={shots.length}
                   live={live}
+                  recent={recentShots}
+                  onOpenShot={(id) => {
+                    document.exitFullscreen?.()
+                    setEditorId(id)
+                  }}
+                  markers={sourceMarkers}
+                  onSeekMarker={(m) => seek(m.time)}
+                  overlays={overlays}
+                  setOverlays={setOverlays}
+                  rotate={rotate}
+                  setRotate={setRotate}
+                  flipH={flipH}
+                  setFlipH={setFlipH}
+                  flipV={flipV}
+                  setFlipV={setFlipV}
                 />
               )}
               {!source && (
