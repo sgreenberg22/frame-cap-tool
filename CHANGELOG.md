@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Videos with no decodable picture** (for example iPhone HEVC `.mov` in Chrome without the HEVC extension, which loads the duration and audio but shows black and raises no error) now show the explanation and fix steps.
+
 - **Upscale dialog** (Frames → Enhance → Upscale…, and the editor's Enhance tab). Pick what the image is (photo, screenshot/UI, old or noisy), Smart or AI, and an exact size: 2×, 3×, 4× or fit to 1080p, 1440p or 4K. Shows the plan, warns about poor combinations and previews a centre crop with a before/after slider. Noisy sources are denoised before enlarging; UI uses stronger edge sharpening.
 - AI upscaling can be cancelled, keeps the page responsive between tiles, preserves transparency and reports which backend ran.
 

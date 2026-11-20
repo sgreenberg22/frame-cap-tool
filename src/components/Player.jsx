@@ -47,6 +47,16 @@ const Player = forwardRef(function Player(
   const rendererRef = useRef(null)
   const [glOk, setGlOk] = useState(() => supportsWebGL2())
   const [decodeError, setDecodeError] = useState(null)
+  const noPictureTimer = useRef(0)
+  const reportDecodeFailure = useCallback(() => {
+    if (source?.kind === 'file' && source.file) {
+      setDecodeError((d) => d || { codecs: null })
+      sniffCodec(source.file)
+        .then((codecs) => setDecodeError({ codecs }))
+        .catch(() => setDecodeError({ codecs: [] }))
+    } else setDecodeError({ codecs: [] })
+  }, [source])
+  useEffect(() => () => clearTimeout(noPictureTimer.current), [])
   const eventRef = useRef(onVideoEvent)
   eventRef.current = onVideoEvent
   const [glReady, setGlReady] = useState(false)
@@ -204,6 +214,7 @@ const Player = forwardRef(function Player(
     setZoom(1)
     setPan({ x: 0, y: 0 })
     setDecodeError(null)
+    clearTimeout(noPictureTimer.current)
     if (!source) {
       v.removeAttribute('src')
       v.srcObject = null
@@ -488,19 +499,21 @@ const Player = forwardRef(function Player(
           preload="auto"
           style={{ filter: fallbackCss, opacity: glReady ? 0.001 : 1 }}
           onError={() => {
-            const err = videoRef.current?.error
-            onVideoError?.(err)
-            if (source?.kind === 'file' && source.file) {
-              setDecodeError({ codecs: null })
-              sniffCodec(source.file)
-                .then((codecs) => setDecodeError({ codecs }))
-                .catch(() => setDecodeError({ codecs: [] }))
-            } else setDecodeError({ codecs: [] })
+            onVideoError?.(videoRef.current?.error)
+            reportDecodeFailure()
           }}
           onPlay={() => onVideoEvent?.('play')}
           onPause={() => onVideoEvent?.('pause')}
           onLoadedMetadata={() => {
-            setDecodeError(null)
+            // Chrome without the HEVC codec reads the duration and audio but has no picture
+            // (videoWidth 0) and never fires an error. Treat that as a decode failure too.
+            if (videoRef.current?.videoWidth) setDecodeError(null)
+            else if (source?.kind === 'file' && !source.stream) {
+              clearTimeout(noPictureTimer.current)
+              noPictureTimer.current = setTimeout(() => {
+                if (videoRef.current && !videoRef.current.videoWidth) reportDecodeFailure()
+              }, 1200)
+            }
             onVideoEvent?.('loadedmetadata')
           }}
           onRateChange={() => onVideoEvent?.('ratechange')}
