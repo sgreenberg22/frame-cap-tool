@@ -151,6 +151,21 @@ try {
   await page.waitForFunction(() => !document.fullscreenElement)
   ok('fullscreen controls capture and exit')
 
+  // Command palette: run a Studio action and open What's new
+  await page.waitForTimeout(500)
+  const before = await page.evaluate(() => document.querySelectorAll('.recent-thumb').length)
+  await page.keyboard.press('Control+k')
+  const pal = page.getByRole('combobox', { name: 'Command' })
+  await pal.fill('capture frame')
+  await pal.press('Enter')
+  await page.waitForFunction((n) => document.querySelectorAll('.recent-thumb').length > n || n >= 8, before, { timeout: 10000 })
+  await page.keyboard.press('Control+k')
+  await page.getByRole('combobox', { name: 'Command' }).fill("what's new")
+  await page.keyboard.press('Enter')
+  await page.getByRole('dialog', { name: "What's new" }).waitFor({ timeout: 5000 })
+  await page.keyboard.press('Escape')
+  ok('command palette runs actions and shows what is new')
+
   errors.length ? fail('console errors:\n' + errors.join('\n')) : ok('no console errors')
 } catch (e) {
   fail(e.stack || e.message)

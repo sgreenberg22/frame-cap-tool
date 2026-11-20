@@ -33,6 +33,7 @@ export const SHORTCUTS = [
       ['0', 'Reset zoom and pan'],
       ['Ctrl/⌘ + scroll', 'Zoom the video'],
       ['1 / 2 / 3', 'Switch to Video / Frames / Animate'],
+      ['Ctrl/⌘ + K', 'Command palette'],
       ['?', 'Show this help'],
     ],
   ],

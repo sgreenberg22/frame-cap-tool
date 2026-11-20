@@ -6,6 +6,7 @@ import { drawTitles } from '../lib/titles'
 import { downloadBlob } from '../lib/download'
 import { formatBytes, ls } from '../lib/storage'
 import { formatClock } from '../lib/timecode'
+import { bitrateForTarget, SIZE_PRESETS } from '../lib/targetSize'
 
 const SIZES = [
   ['source', 'Same as source'],
@@ -21,7 +22,15 @@ const QUALITY = { small: ['Smaller file', 0.05], balanced: ['Balanced', 0.1], hi
 /** Renders the edit (cuts, speed, color, crop, titles, fades) to an MP4 or WebM file, entirely in the browser. */
 export default function ExportVideoPanel({ videoRef, source, edit, duration, fps: sourceFps, captureCanvas, filters, onOpenResult, live }) {
   const { toast, logError } = useApp()
-  const [o, setO] = useState(() => ({ size: 'source', fps: 'source', quality: 'balanced', audio: true, sharpen: true, ...ls.get('fc.exportVideo', {}) }))
+  const [o, setO] = useState(() => ({
+    size: 'source',
+    fps: 'source',
+    quality: 'balanced',
+    audio: true,
+    sharpen: true,
+    targetMB: '',
+    ...ls.get('fc.exportVideo', {}),
+  }))
   const [status, setStatus] = useState(null)
   const [result, setResult] = useState(null)
   const cancelRef = useRef(false)
@@ -72,7 +81,7 @@ export default function ExportVideoPanel({ videoRef, source, edit, duration, fps
         fps: outFps,
         width: w,
         height: h,
-        bitrate: Math.round(w * h * outFps * QUALITY[o.quality][1]),
+        bitrate: bitrateForTarget(+o.targetMB * 1024 * 1024, total, { hasAudio: !!audio }) ?? Math.round(w * h * outFps * QUALITY[o.quality][1]),
         audio,
         fadeIn: edit.fadeIn || 0,
         fadeOut: edit.fadeOut || 0,
@@ -106,6 +115,33 @@ export default function ExportVideoPanel({ videoRef, source, edit, duration, fps
         Exports your cuts, clip order and speed, color, crop/rotation, titles and fades as a new video file.{' '}
         {v?.videoWidth ? `${clips.length} clip${clips.length === 1 ? '' : 's'} · ${formatClock(total)} · ${frames} frames.` : ''}
       </p>
+      <div className="field">
+        <label>
+          Target file size (MB, optional)
+          <input
+            type="number"
+            min="1"
+            step="1"
+            className="num wide"
+            placeholder="Auto (use quality)"
+            value={o.targetMB}
+            onChange={(e) => set({ targetMB: e.target.value })}
+          />
+        </label>
+        <div className="row wrap gap-s">
+          {SIZE_PRESETS.map(([l, mb]) => (
+            <button key={l} className="btn secondary sm" onClick={() => set({ targetMB: String(mb) })}>
+              {l}
+            </button>
+          ))}
+          {o.targetMB && (
+            <button className="btn secondary sm" onClick={() => set({ targetMB: '' })}>
+              Clear
+            </button>
+          )}
+        </div>
+        <span className="muted small">Picks a bitrate to land near this size. Quality below drops if the target is tight.</span>
+      </div>
       <div className="grid2">
         <label className="field">
           Resolution

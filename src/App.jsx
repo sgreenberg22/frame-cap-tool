@@ -5,6 +5,7 @@ import { I18nContext, useT } from './lib/i18n'
 import Toasts from './components/Toasts'
 import CompatBanner from './components/CompatBanner'
 import ErrorBoundary from './components/ErrorBoundary'
+import CommandPalette from './components/CommandPalette'
 
 const THEMES = [
   ['system', 'Auto'],
@@ -46,6 +47,13 @@ function Header() {
             </NavLink>
           ))}
         </nav>
+        <button
+          className="btn secondary sm hide-sm"
+          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))}
+          title="Command palette (Ctrl/⌘ K)"
+        >
+          ⌘K
+        </button>
         <label className="theme-pick">
           <span className="sr-only">Theme</span>
           <select value={settings.theme} onChange={(e) => setSettings({ theme: e.target.value })} aria-label="Theme">
@@ -110,6 +118,7 @@ export default function App() {
         </small>
       </footer>
       <Toasts />
+      <CommandPalette />
     </I18nContext.Provider>
   )
 }

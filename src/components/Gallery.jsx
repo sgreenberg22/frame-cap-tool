@@ -9,6 +9,7 @@ import Modal from './Modal'
 import { blobToDrawable, canvasToBlob, makeThumb } from '../lib/capture'
 import { enhanceCanvas, stackCanvases, UPSCALE_CHOICES } from '../lib/enhanceClient'
 import { ENHANCE_TOOLS } from '../lib/enhance'
+import { signature, signatureDiff } from '../lib/analysis'
 
 const SORTS = [
   ['custom', 'Custom order'],
@@ -123,6 +124,36 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
       toast(`${label}: ${list.length} frame${list.length > 1 ? 's' : ''} updated. Use ⋯ → Revert to undo.`)
     } catch (e) {
       toast(`${label} failed: ${e.message}`, { kind: 'error', timeout: 7000 })
+    } finally {
+      setBusy('')
+    }
+  }
+
+  /** Select later frames that look almost identical to an earlier kept frame, then offer to delete them. */
+  async function removeDuplicates() {
+    const list = [...visible].sort((a, b) => a.seq - b.seq)
+    if (list.length < 2) return toast('Capture at least two frames first', { kind: 'warn' })
+    setBusy('Looking for near-duplicates…')
+    try {
+      const kept = []
+      const dupes = []
+      for (let i = 0; i < list.length; i++) {
+        const d = await blobToDrawable(list[i].blob)
+        const sig = signature(d)
+        d.close?.()
+        if (kept.some((k) => signatureDiff(k, sig) < 1.2)) dupes.push(list[i].id)
+        else kept.push(sig)
+      }
+      if (!dupes.length) return toast('No near-duplicate frames found')
+      if (
+        await confirm(`Delete ${dupes.length} near-duplicate frame${dupes.length > 1 ? 's' : ''}? The first of each look-alike set is kept.`, {
+          danger: true,
+          confirmLabel: 'Delete duplicates',
+        })
+      )
+        removeShots(dupes)
+    } catch (e) {
+      toast(`Duplicate check failed: ${e.message}`, { kind: 'error' })
     } finally {
       setBusy('')
     }
@@ -470,6 +501,16 @@ export default function Gallery({ selected, setSelected, onEdit, onSeek, onAnima
                 {label}
               </button>
             ))}
+            <span className="menu-head">Clean up</span>
+            <button
+              title="Find frames that look almost identical and delete the extras"
+              onClick={(e) => {
+                e.currentTarget.closest('details').open = false
+                removeDuplicates()
+              }}
+            >
+              Remove near-duplicates
+            </button>
             <span className="menu-head">Combine</span>
             <button
               title="Median of the selected frames: removes noise and moving specks from a static shot"
