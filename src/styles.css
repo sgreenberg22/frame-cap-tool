@@ -2999,3 +2999,75 @@ meter {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Perspective dialog */
+.persp-wrap {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.4fr 1fr;
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .persp-wrap {
+    grid-template-columns: 1fr;
+  }
+}
+.persp-stage {
+  position: relative;
+  width: 100%;
+  touch-action: none;
+  background: #000;
+  border-radius: 8px;
+  user-select: none;
+}
+.persp-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.persp-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.persp-lines polygon {
+  fill: rgba(79, 140, 255, 0.15);
+  stroke: #4f8cff;
+  stroke-width: 0.004;
+  vector-effect: non-scaling-stroke;
+}
+.persp-lines polygon.bad {
+  stroke: #ff4d4d;
+  fill: rgba(255, 77, 77, 0.15);
+}
+.persp-handle {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: #4f8cff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  padding: 0;
+}
+.persp-handle:focus-visible {
+  outline: 3px solid #ffb020;
+}
+.persp-preview {
+  background: repeating-conic-gradient(#2a2a2a 0 25%, #333 0 50%) 0 0 / 16px 16px;
+  border-radius: 8px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+.persp-preview canvas {
+  max-width: 100%;
+  max-height: 360px;
+}

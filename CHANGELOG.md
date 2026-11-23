@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Photo editor page** (`/photo`, "Photo" in the menu). Open a picture straight in the editor with no video: choose, drop or paste JPG, PNG, WebP, GIF, AVIF or **iPhone HEIC** (decoded on-device with a lazy, self-hosted libheif build; the CSP gained `'wasm-unsafe-eval'` for it). Select a **Live Photo's** still and its `.MOV` together and they are paired; the motion clip can be opened in the Studio from the photo card. A lone video dropped there opens in the Studio.
+- **Editor:** Perspective correction (Transform tab → Fix perspective…). Drag four corners onto a slanted page, sign or building face with a live preview; annotations move with the image and the edit can be replayed on other selected photos.
 - **Editor:** Colour mixer (hue, saturation and brightness for 8 colour bands) and Lens fixes (remove red/blue colour fringes, lift or add corner light), both in the Enhance tab.
 - **Editor:** Auto-straighten (Transform tab). Edge pixels vote for the rotation that lines them up, it pre-fills the Straighten slider so you can check it before applying.
 

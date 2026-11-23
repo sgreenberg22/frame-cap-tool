@@ -1,3 +1,4 @@
+import { perspectiveCanvas } from '../../lib/perspective'
 // Editor document model. Geometry ops transform the base image AND remap object coordinates,
 // so annotations stay put and adjustments are never baked in until export.
 import { renderFiltered } from '../../lib/capture'
@@ -146,6 +147,11 @@ export function scaleObject(o, sx, sy, ox, oy) {
 
 /** Geometry operations: return { base, objects } */
 export const geometry = {
+  /** quadN: normalised corners (TL, TR, BR, BL) to flatten into a rectangle. */
+  perspective(doc, quadN) {
+    const { canvas, forward } = perspectiveCanvas(doc.base, quadN)
+    return { base: canvas, objects: doc.objects.map((o) => mapObject(o, forward)) }
+  },
   crop(doc, r) {
     const x = Math.round(Math.max(0, r.x)),
       y = Math.round(Math.max(0, r.y))
@@ -243,6 +249,7 @@ export function replayOps(doc, ops) {
     else if (op.type === 'resize') g = geometry.resize(d, Math.round(W * op.sx), Math.round(H * op.sy), op.quality)
     else if (op.type === 'pad') g = geometry.pad(d, Math.round(op.frac * Math.max(W, H)), op.color)
     else if (op.type === 'straighten') g = geometry.straighten(d, op.deg)
+    else if (op.type === 'perspective') g = geometry.perspective(d, op.quad)
     if (g) d = { ...d, ...g }
   }
   return d

@@ -1,3 +1,4 @@
+import PerspectiveDialog from './PerspectiveDialog'
 import { detectStraighten } from '../../lib/autoStraighten'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Modal from '../Modal'
@@ -126,6 +127,7 @@ export default function EditorModal({ shot, onClose, selected }) {
   const [showOriginal, setShowOriginal] = useState(false)
   const [straighten, setStraighten] = useState(0)
   const [hslBands, setHslBands] = useState({})
+  const [perspOpen, setPerspOpen] = useState(false)
   const [hslKey, setHslKey] = useState('red')
   const [vigAmount, setVigAmount] = useState(40)
   const [resize, setResize] = useState({ w: 0, h: 0, lock: true, quality: 'high' })
@@ -1590,6 +1592,27 @@ export default function EditorModal({ shot, onClose, selected }) {
                   >
                     Apply (auto-crops edges)
                   </button>
+                </fieldset>
+                <fieldset>
+                  <legend>Perspective</legend>
+                  <button
+                    className="btn secondary sm"
+                    onClick={() => setPerspOpen(true)}
+                    disabled={!!busy}
+                    title="Straighten a page, sign or building seen at an angle"
+                  >
+                    Fix perspective…
+                  </button>
+                  {perspOpen && doc && (
+                    <PerspectiveDialog
+                      canvas={doc.base}
+                      onClose={() => setPerspOpen(false)}
+                      onApply={(quad) => {
+                        setPerspOpen(false)
+                        applyGeometry('Perspective', (d) => geometry.perspective(d, quad), { type: 'perspective', quad })
+                      }}
+                    />
+                  )}
                 </fieldset>
                 <fieldset>
                   <legend>Resize</legend>
