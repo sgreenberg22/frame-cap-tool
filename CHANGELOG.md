@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Animation studio** (`/animate`, "Animate" in the menu). Build an animation from scratch: draw frames (pen, eraser, line, rectangle, ellipse, paint bucket) with a ghost of the previous frame, add photos (including HEIC), animated GIFs, frames you captured in the Studio, or a section of a video clip. Reorder, duplicate, reverse or ping-pong frames, set per-frame timing, preview with playback, then export a GIF (colours, dithering, optimise, size, repeat) or APNG. Frames are kept while you move between pages (not after a reload).
+
 - **Photo editor page** (`/photo`, "Photo" in the menu). Open a picture straight in the editor with no video: choose, drop or paste JPG, PNG, WebP, GIF, AVIF or **iPhone HEIC** (decoded on-device with a lazy, self-hosted libheif build; the CSP gained `'wasm-unsafe-eval'` for it). Select a **Live Photo's** still and its `.MOV` together and they are paired; the motion clip can be opened in the Studio from the photo card. A lone video dropped there opens in the Studio.
 - **Editor: healing brush** (tool Y). Paint over a blemish, dust spot or wire; it finds a matching nearby area itself (or Alt-click to choose the source), copies its texture and matches the colour and tone to the surroundings so there is no visible patch edge. It adds a layer, so it is undoable and removable.
 - **Editor: local adjustments** (Enhance tab → Mask & adjust part of the photo…). Paint a mask with a soft brush, a linear or circular gradient, or select a colour, then change exposure, contrast, saturation, warmth, highlights, shadows, sharpness or blur in just that area, with a live preview, undo and invert.

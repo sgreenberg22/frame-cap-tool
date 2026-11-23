@@ -31,6 +31,7 @@ function Header() {
     ['/', t('nav.home')],
     ['/studio', t('nav.studio')],
     ['/photo', t('nav.photo')],
+    ['/animate', t('nav.animate')],
     ['/help', t('nav.help')],
     ['/settings', t('nav.settings')],
     ['/about', t('nav.about')],

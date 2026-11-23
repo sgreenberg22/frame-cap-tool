@@ -1,7 +1,7 @@
 # v2.1 improvement status
 
 Status of the 120 items in [V3-IMPROVEMENT-PROMPT.md](V3-IMPROVEMENT-PROMPT.md).
-**21 done · 8 partial · 91 not started.** Also added beyond the list: a standalone Photo page with HEIC and Live Photo import, and a before/after split view.
+**21 done · 8 partial · 91 not started.** Also added beyond the list: a standalone Photo page with HEIC and Live Photo import, a before/after split view, and an animation studio page.
 
 | #   | Item                                                  | Status  | Notes                                                                                                                                                                  |
 | --- | ----------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

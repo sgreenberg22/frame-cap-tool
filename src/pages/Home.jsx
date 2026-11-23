@@ -40,6 +40,9 @@ export default function Home() {
           <Link to="/photo" className="btn secondary lg">
             Edit a photo
           </Link>
+          <Link to="/animate" className="btn secondary lg">
+            Make an animation
+          </Link>
           <Link to="/help" className="btn secondary lg">
             How it works
           </Link>

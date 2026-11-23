@@ -23,6 +23,12 @@ Live: https://frame-cap-tool.pages.dev
 - "Play the edit" preview that skips removed parts and follows clip order and speed
 - Frame-accurate export with WebCodecs: MP4 (H.264 + AAC) or WebM (VP9 + Opus), source size, 2× upscale or up to 4K, with color, crop, rotation, titles and audio baked in
 
+**Photo editor and animation studio**
+
+- Photo page (`/photo`): open any picture without a video, including iPhone HEIC; select a Live Photo's still and `.MOV` together to keep the motion clip
+- Editor: perspective correction, auto-straighten, healing brush, local adjustments with brush / gradient / colour masks, colour mixer, three-way grading wheels, lens fixes (fringes, vignetting, distortion), before/after split view
+- Animation studio (`/animate`): draw frames or import photos, GIFs, captured frames and video clips; onion skin, per-frame timing, GIF and APNG export
+
 **Enhance and upscale**
 
 - One-click auto enhance, auto tone, auto white balance, denoise, sharpen, clarity, dehaze, low-light boost, vibrance, deinterlace

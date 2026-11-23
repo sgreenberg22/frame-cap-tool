@@ -342,6 +342,35 @@ try {
   ok('healing brush removes a blemish')
   await page.keyboard.press('Escape')
 
+  // Animation studio: draw, add a photo, export a GIF
+  await page.goto(BASE + '/animate')
+  await page.getByRole('button', { name: /Blank frame/ }).click()
+  const animStage = page.locator('.anim-stage canvas')
+  const ab = await animStage.boundingBox()
+  await page.mouse.move(ab.x + ab.width * 0.2, ab.y + ab.height * 0.3)
+  await page.mouse.down()
+  await page.mouse.move(ab.x + ab.width * 0.7, ab.y + ab.height * 0.6, { steps: 8 })
+  await page.mouse.up()
+  const inked = () =>
+    animStage.evaluate((c) => {
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+      let dark = 0
+      for (let i = 0; i < d.length; i += 4) if (d[i] < 80 && d[i + 3] > 0) dark++
+      return dark
+    })
+  if ((await inked()) < 50) throw new Error('drawing did not leave ink on the frame')
+  await page.getByRole('button', { name: /Duplicate/ }).click()
+  await page.locator('#animInput').setInputFiles('e2e/fixtures/tilted.jpg')
+  await page.waitForFunction(() => document.querySelectorAll('.anim-thumb').length === 3, null, { timeout: 10000 })
+  await page.getByRole('button', { name: 'Play' }).click()
+  await page.waitForTimeout(500)
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await page.getByRole('button', { name: 'Make GIF' }).click()
+  await page.locator('.anim-result img').waitFor({ timeout: 30000 })
+  const gifOk = await page.locator('.anim-result img').evaluate((img) => img.complete && img.naturalWidth > 0)
+  if (!gifOk) throw new Error('exported GIF did not load')
+  ok('animation studio: draw, add a photo, play and export a GIF')
+
   errors.length ? fail('console errors:\n' + errors.join('\n')) : ok('no console errors')
 } catch (e) {
   fail(e.stack || e.message)
