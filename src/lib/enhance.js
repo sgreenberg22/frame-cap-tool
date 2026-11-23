@@ -501,6 +501,44 @@ export function hslAdjust(img, bands) {
   return img
 }
 
+/**
+ * Three-way colour grading. Each range is { hue (deg), amount (0..100), lum (-100..100) }:
+ * amount tints that range towards the hue, lum lifts or lowers it. Ranges blend by brightness.
+ */
+export function colorGrade(img, g) {
+  const ranges = ['shadows', 'mids', 'highlights'].map((k) => {
+    const r = g?.[k] || {}
+    const [tr, tg, tb] = hslToRgb((((r.hue || 0) % 360) + 360) % 360, 1, 0.5)
+    const m = (tr + tg + tb) / 3
+    const a = ((r.amount || 0) / 100) * 0.3
+    return { t: [(tr - m) * a, (tg - m) * a, (tb - m) * a], lum: ((r.lum || 0) / 100) * 0.25, on: !!(r.amount || r.lum) }
+  })
+  if (!ranges.some((r) => r.on)) return img
+  const d = img.data
+  for (let i = 0; i < d.length; i += 4) {
+    const r0 = d[i] / 255
+    const g0 = d[i + 1] / 255
+    const b0 = d[i + 2] / 255
+    const l = r0 * LR + g0 * LG + b0 * LB
+    const ws = (1 - clamp01(l * 2)) ** 2
+    const wh = clamp01(l * 2 - 1) ** 2
+    const w = [ws, 1 - ws - wh, wh]
+    let r = r0
+    let gg = g0
+    let b = b0
+    for (let k = 0; k < 3; k++) {
+      if (!ranges[k].on) continue
+      r += (ranges[k].t[0] + ranges[k].lum) * w[k]
+      gg += (ranges[k].t[1] + ranges[k].lum) * w[k]
+      b += (ranges[k].t[2] + ranges[k].lum) * w[k]
+    }
+    d[i] = clamp01(r) * 255
+    d[i + 1] = clamp01(gg) * 255
+    d[i + 2] = clamp01(b) * 255
+  }
+  return img
+}
+
 /** Brighten (amount > 0) or darken (amount < 0) towards the corners; amount -1..1. */
 export function devignette(img, amount = 0.5) {
   const { width: w, height: h, data: d } = img
@@ -580,6 +618,59 @@ export function defringe(img, strength = 1) {
       const i = (y * w + x) * 4
       d[i] = sampleChannel(src, w, h, 0, cx + (x - cx) * sr, cy + (y - cy) * sr)
       d[i + 2] = sampleChannel(src, w, h, 2, cx + (x - cx) * sb, cy + (y - cy) * sb)
+    }
+  }
+  return img
+}
+
+/**
+ * Barrel / pincushion distortion. amount -1..1: positive pulls the image outwards at the edges
+ * (fixes barrel "bulge" from wide lenses), negative pushes inwards (fixes pincushion). The
+ * result is zoomed just enough that no empty corners appear.
+ */
+export function lensDistortion(img, amount = 0.3) {
+  if (!amount) return img
+  const { width: w, height: h } = img
+  const src = new Uint8ClampedArray(img.data)
+  const d = img.data
+  const cx = (w - 1) / 2
+  const cy = (h - 1) / 2
+  const norm = Math.hypot(cx, cy) || 1
+  const k = -amount * 0.35
+  const map = (nx, ny, z) => {
+    const f = (1 + k * (nx * nx + ny * ny)) / z
+    return [nx * f, ny * f]
+  }
+  // Smallest zoom at which every output pixel still samples inside the source.
+  let z = 1
+  for (let t = 0; t <= 1.0001; t += 0.01) {
+    for (const [ex, ey] of [
+      [-cx + 2 * cx * t, -cy],
+      [-cx + 2 * cx * t, cy],
+      [-cx, -cy + 2 * cy * t],
+      [cx, -cy + 2 * cy * t],
+    ]) {
+      const [mx, my] = map(ex / norm, ey / norm, 1)
+      z = Math.max(z, Math.abs(mx * norm) / cx, Math.abs(my * norm) / cy)
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const [mx, my] = map((x - cx) / norm, (y - cy) / norm, z)
+      const sx = Math.min(w - 1, Math.max(0, cx + mx * norm))
+      const sy = Math.min(h - 1, Math.max(0, cy + my * norm))
+      const x0 = sx | 0
+      const y0 = sy | 0
+      const x1 = Math.min(w - 1, x0 + 1)
+      const y1 = Math.min(h - 1, y0 + 1)
+      const fx = sx - x0
+      const fy = sy - y0
+      const o = (y * w + x) * 4
+      for (let c = 0; c < 4; c++) {
+        const a = src[(y0 * w + x0) * 4 + c] * (1 - fx) + src[(y0 * w + x1) * 4 + c] * fx
+        const b = src[(y1 * w + x0) * 4 + c] * (1 - fx) + src[(y1 * w + x1) * 4 + c] * fx
+        d[o + c] = a * (1 - fy) + b * fy
+      }
     }
   }
   return img
@@ -691,6 +782,8 @@ export const ENHANCE_OPS = {
   cas: (img, p) => cas(img, p.sharpness ?? 0.5),
   hsl: (img, p) => hslAdjust(img, p.bands),
   devignette: (img, p) => devignette(img, p.amount ?? 0.5),
+  colorGrade: (img, p) => colorGrade(img, p.grade),
+  lensDistortion: (img, p) => lensDistortion(img, p.amount ?? 0.3),
   defringe: (img, p) => defringe(img, p.strength ?? 1),
 }
 

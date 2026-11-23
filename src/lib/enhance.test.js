@@ -1,6 +1,7 @@
 import {
   autoTone,
   autoWhiteBalance,
+  colorGrade,
   cas,
   channelCdfs,
   colorMatch,
@@ -8,6 +9,7 @@ import {
   defringe,
   devignette,
   hslAdjust,
+  lensDistortion,
   denoise,
   resizeLanczos,
   runOps,
@@ -158,5 +160,54 @@ describe('colour bands and lens fixes', () => {
     const before = err(img)
     defringe(img, 1)
     expect(err(img)).toBeLessThan(before)
+  })
+})
+
+describe('lens distortion', () => {
+  const grid = () => make(101, 101, (x, y) => (x % 10 === 0 || y % 10 === 0 ? [255, 255, 255, 255] : [0, 0, 0, 255]))
+  it('keeps the centre in place and keeps the size', () => {
+    const img = grid()
+    lensDistortion(img, 0.6)
+    expect(img.width).toBe(101)
+    expect(px(img, 50, 50)).toEqual([255, 255, 255])
+  })
+  it('changes the edges but not when amount is 0', () => {
+    const a = grid()
+    const b = grid()
+    lensDistortion(a, 0)
+    lensDistortion(b, 0.6)
+    expect([...a.data]).toEqual([...grid().data])
+    expect([...b.data]).not.toEqual([...grid().data])
+  })
+  it('never samples outside the image (no transparent or black fill added)', () => {
+    const img = make(60, 40, () => [200, 100, 50, 255])
+    lensDistortion(img, -1)
+    lensDistortion(img, 1)
+    for (let i = 0; i < img.data.length; i += 4) expect([...img.data.slice(i, i + 4)]).toEqual([200, 100, 50, 255])
+  })
+})
+
+describe('colour grading', () => {
+  it('tints shadows blue without touching highlights', () => {
+    const img = make(2, 1, (x) => (x ? [240, 240, 240, 255] : [20, 20, 20, 255]))
+    colorGrade(img, { shadows: { hue: 240, amount: 100, lum: 0 } })
+    const [r, , b] = px(img, 0, 0)
+    expect(b).toBeGreaterThan(r + 15)
+    expect(px(img, 1, 0)).toEqual([240, 240, 240])
+  })
+  it('warms highlights only', () => {
+    const img = make(2, 1, (x) => (x ? [220, 220, 220, 255] : [25, 25, 25, 255]))
+    colorGrade(img, { highlights: { hue: 30, amount: 100, lum: 0 } })
+    const [r, , b] = px(img, 1, 0)
+    expect(r).toBeGreaterThan(b + 10)
+    expect(px(img, 0, 0)).toEqual([25, 25, 25])
+  })
+  it('lum lifts midtones and does nothing when neutral', () => {
+    const a = make(1, 1, () => [128, 128, 128, 255])
+    colorGrade(a, { mids: { hue: 0, amount: 0, lum: 60 } })
+    expect(px(a, 0, 0)[0]).toBeGreaterThan(160)
+    const b = make(1, 1, () => [90, 100, 110, 255])
+    colorGrade(b, {})
+    expect(px(b, 0, 0)).toEqual([90, 100, 110])
   })
 })

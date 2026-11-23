@@ -1,3 +1,4 @@
+import GradeWheel from './GradeWheel'
 import PerspectiveDialog from './PerspectiveDialog'
 import { detectStraighten } from '../../lib/autoStraighten'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -125,11 +126,15 @@ export default function EditorModal({ shot, onClose, selected }) {
   const [zoom, setZoom] = useState(1)
   const [cursor, setCursor] = useState(null)
   const [showOriginal, setShowOriginal] = useState(false)
+  const [splitView, setSplitView] = useState(false)
+  const [split, setSplit] = useState(50)
   const [straighten, setStraighten] = useState(0)
   const [hslBands, setHslBands] = useState({})
   const [perspOpen, setPerspOpen] = useState(false)
+  const [grade, setGrade] = useState({})
   const [hslKey, setHslKey] = useState('red')
   const [vigAmount, setVigAmount] = useState(40)
+  const [distort, setDistort] = useState(30)
   const [resize, setResize] = useState({ w: 0, h: 0, lock: true, quality: 'high' })
   const [pad, setPad] = useState({ px: 40, color: '#ffffff' })
   const [frame, setFrame] = useState(DEFAULT_FRAME)
@@ -1080,6 +1085,14 @@ export default function EditorModal({ shot, onClose, selected }) {
         >
           Original
         </button>
+        <button
+          className={`btn secondary sm ${splitView ? 'active' : ''}`}
+          aria-pressed={splitView}
+          onClick={() => setSplitView((v) => !v)}
+          title="Compare before and after side by side with a draggable divider"
+        >
+          Before / after
+        </button>
         <span className="spacer" />
         {busy && (
           <span className="muted small">
@@ -1156,6 +1169,38 @@ export default function EditorModal({ shot, onClose, selected }) {
                     alt="Original"
                     style={{ width: W * zoom, height: H * zoom, objectFit: 'contain' }}
                   />
+                )}
+                {splitView && initialBase && (
+                  <>
+                    <img
+                      className="editor-original"
+                      src={shot.originalUrl || shot.url}
+                      alt=""
+                      style={{ width: W * zoom, height: H * zoom, objectFit: 'contain', clipPath: `inset(0 ${100 - split}% 0 0)` }}
+                    />
+                    <span className="split-label left">Before</span>
+                    <span className="split-label right">After</span>
+                    <div
+                      className="split-handle"
+                      style={{ left: `${split}%` }}
+                      role="slider"
+                      tabIndex={0}
+                      aria-label="Before and after divider"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(split)}
+                      onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
+                      onPointerMove={(e) => {
+                        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+                        const r = e.currentTarget.parentElement.getBoundingClientRect()
+                        setSplit(clamp(((e.clientX - r.left) / r.width) * 100, 0, 100))
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowLeft') setSplit((v) => clamp(v - (e.shiftKey ? 10 : 2), 0, 100))
+                        if (e.key === 'ArrowRight') setSplit((v) => clamp(v + (e.shiftKey ? 10 : 2), 0, 100))
+                      }}
+                    />
+                  </>
                 )}
                 {textEdit && (
                   <textarea
@@ -1868,6 +1913,48 @@ export default function EditorModal({ shot, onClose, selected }) {
                   </div>
                 </fieldset>
                 <fieldset>
+                  <legend>Colour grading</legend>
+                  <div className="grade-row">
+                    {[
+                      ['shadows', 'Shadows'],
+                      ['mids', 'Midtones'],
+                      ['highlights', 'Highlights'],
+                    ].map(([k, label]) => (
+                      <div key={k}>
+                        <GradeWheel label={label} value={grade[k]} onChange={(v) => setGrade((g) => ({ ...g, [k]: v }))} />
+                        <input
+                          type="range"
+                          min="-100"
+                          max="100"
+                          value={grade[k]?.lum || 0}
+                          onChange={(e) => setGrade((g) => ({ ...g, [k]: { ...g[k], lum: parseInt(e.target.value, 10) } }))}
+                          aria-label={`${label} brightness`}
+                          title={`${label} brightness`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <small className="muted">
+                    Drag in a wheel to tint that tone range. The slider under it lifts or lowers it. Double-click a wheel to reset it.
+                  </small>
+                  <div className="row gap-s">
+                    <button
+                      className="btn secondary sm"
+                      disabled={!!busy || !Object.values(grade).some((r) => r && (r.amount || r.lum))}
+                      onClick={() => {
+                        const g = grade
+                        setGrade({})
+                        runEnhanceQuiet([{ op: 'colorGrade', grade: g }], 'Colour grading')
+                      }}
+                    >
+                      Apply grading
+                    </button>
+                    <button className="btn secondary sm" onClick={() => setGrade({})}>
+                      Reset
+                    </button>
+                  </div>
+                </fieldset>
+                <fieldset>
                   <legend>Lens fixes</legend>
                   <button
                     className="btn secondary sm"
@@ -1884,6 +1971,15 @@ export default function EditorModal({ shot, onClose, selected }) {
                     onClick={() => runEnhanceQuiet([{ op: 'devignette', amount: vigAmount / 100 }], vigAmount > 0 ? 'Lighten corners' : 'Darken corners')}
                   >
                     Apply corner light
+                  </button>
+                  <Slider label="Barrel ↔ pincushion" value={distort} min={-100} max={100} unit="%" def={0} onChange={setDistort} />
+                  <button
+                    className="btn secondary sm"
+                    disabled={!!busy || !distort}
+                    onClick={() => runEnhanceQuiet([{ op: 'lensDistortion', amount: distort / 100 }], 'Lens distortion')}
+                    title="Positive straightens lines that bow outwards (wide-angle barrel); negative fixes pincushion"
+                  >
+                    Apply distortion fix
                   </button>
                   <small className="muted">Positive lifts dark corners (vignetting); negative adds a vignette.</small>
                 </fieldset>
