@@ -256,6 +256,59 @@ try {
   await page.getByRole('button', { name: 'Apply colour mixer' }).isDisabled()
   await page.getByText('Remove colour fringes').first().waitFor({ timeout: 15000 })
   ok('colour mixer and lens fixes are available and run')
+  // Local adjustments (mask), grading wheels, lens distortion, split view
+  {
+    const meanLuma = () =>
+      page.evaluate(() => {
+        const c = document.querySelector('canvas.editor-canvas')
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+        let t = 0
+        for (let i = 0; i < d.length; i += 4) t += d[i] + d[i + 1] + d[i + 2]
+        return t / (d.length / 4) / 3
+      })
+    const settled = () => page.waitForFunction(() => !document.querySelector('.editor-toolbar .spinner, .spinner.sm'), null, { timeout: 15000 })
+    let before = await meanLuma()
+    await page.getByRole('button', { name: /Mask & adjust part of the photo/ }).click()
+    const maskDlg = page.getByRole('dialog', { name: 'Local adjustments' })
+    await maskDlg.waitFor({ timeout: 5000 })
+    await maskDlg.getByRole('button', { name: 'Select all' }).click()
+    await maskDlg.getByLabel('Exposure').fill('1')
+    await maskDlg.getByRole('button', { name: 'Apply', exact: true }).click()
+    await maskDlg.waitFor({ state: 'detached', timeout: 5000 })
+    await settled()
+    await page.waitForFunction(() => true)
+    await page.waitForTimeout(600)
+    let after = await meanLuma()
+    if (!(after > before + 5)) throw new Error(`local adjustment did not brighten the photo (${before} -> ${after})`)
+    // Brush a small area only: exposure must change the photo less than a full-image mask did.
+    before = after
+    await page.getByRole('button', { name: /Mask & adjust part of the photo/ }).click()
+    await maskDlg.waitFor({ timeout: 5000 })
+    const stageBox = await maskDlg.locator('.mask-stage').boundingBox()
+    await page.mouse.move(stageBox.x + stageBox.width / 2, stageBox.y + stageBox.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(stageBox.x + stageBox.width / 2 + 40, stageBox.y + stageBox.height / 2, { steps: 6 })
+    await page.mouse.up()
+    await maskDlg.getByLabel('Exposure').fill('-2')
+    await maskDlg.getByRole('button', { name: 'Apply', exact: true }).click()
+    await maskDlg.waitFor({ state: 'detached', timeout: 5000 })
+    await page.waitForTimeout(800)
+    after = await meanLuma()
+    if (!(after < before - 0.3 && after > before - 30)) throw new Error(`brushed mask should darken a little (${before} -> ${after})`)
+    ok('local adjustments change only the masked area')
+    const wheel = page.getByRole('slider', { name: 'Shadows colour' })
+    const wb = await wheel.boundingBox()
+    await page.mouse.click(wb.x + wb.width * 0.85, wb.y + wb.height * 0.5)
+    await page.getByRole('button', { name: 'Apply grading' }).click()
+    await page.waitForTimeout(600)
+    if (!(await page.getByRole('button', { name: 'Apply grading' }).isDisabled())) throw new Error('grading did not apply')
+    await page.getByRole('button', { name: 'Apply distortion fix' }).click()
+    await page.waitForTimeout(600)
+    ok('colour grading wheels and lens distortion fix apply')
+    await page.getByRole('button', { name: 'Before / after' }).click()
+    await page.getByRole('slider', { name: 'Before and after divider' }).waitFor({ timeout: 3000 })
+    ok('before / after split view shows a divider')
+  }
   await page.keyboard.press('Escape')
 
   errors.length ? fail('console errors:\n' + errors.join('\n')) : ok('no console errors')

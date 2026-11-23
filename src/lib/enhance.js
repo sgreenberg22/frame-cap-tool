@@ -539,6 +539,66 @@ export function colorGrade(img, g) {
   return img
 }
 
+/**
+ * Local adjustment: apply tonal/colour changes, blur or sharpen only where the mask is painted.
+ * adj: { exposure (EV -3..3), contrast, saturation, warmth, highlights, shadows (-100..100), sharpen (0..100), blur (0..100) }
+ * mask: { data: Uint8ClampedArray alpha 0..255, width, height } (any size; sampled to fit).
+ */
+export function localAdjust(img, { adj = {}, mask }) {
+  const { width: w, height: h, data: d } = img
+  const orig = new Uint8ClampedArray(d)
+  const ev = Math.pow(2, adj.exposure || 0)
+  const con = 1 + (adj.contrast || 0) / 100
+  const sat = 1 + (adj.saturation || 0) / 100
+  const warm = ((adj.warmth || 0) / 100) * 0.12
+  const hi = ((adj.highlights || 0) / 100) * 0.3
+  const sh = ((adj.shadows || 0) / 100) * 0.3
+  const pixelwise = ev !== 1 || con !== 1 || sat !== 1 || warm || hi || sh
+  if (pixelwise) {
+    for (let i = 0; i < d.length; i += 4) {
+      let r = (d[i] / 255) * ev
+      let g = (d[i + 1] / 255) * ev
+      let b = (d[i + 2] / 255) * ev
+      const l = clamp01(r * LR + g * LG + b * LB)
+      const lift = sh * (1 - l) * (1 - l) + hi * l * l
+      r = (r - 0.5) * con + 0.5 + lift + warm
+      g = (g - 0.5) * con + 0.5 + lift
+      b = (b - 0.5) * con + 0.5 + lift - warm
+      const l2 = r * LR + g * LG + b * LB
+      d[i] = clamp01(l2 + (r - l2) * sat) * 255
+      d[i + 1] = clamp01(l2 + (g - l2) * sat) * 255
+      d[i + 2] = clamp01(l2 + (b - l2) * sat) * 255
+    }
+  }
+  const maxDim = Math.max(w, h)
+  if (adj.blur > 0) {
+    const r = Math.max(1, Math.round((adj.blur / 100) * 0.03 * maxDim))
+    const plane = new Float32Array(w * h)
+    const tmp = new Float32Array(w * h)
+    for (let c = 0; c < 3; c++) {
+      for (let p = 0; p < w * h; p++) plane[p] = d[p * 4 + c]
+      for (let k = 0; k < 3; k++) boxBlurPlane(plane, w, h, r, tmp)
+      for (let p = 0; p < w * h; p++) d[p * 4 + c] = plane[p]
+    }
+  }
+  if (adj.sharpen > 0) sharpen(img, (adj.sharpen / 100) * 1.4, Math.max(1, maxDim / 1000), 2)
+  // Blend the adjusted pixels back through the mask.
+  const mw = mask?.width || w
+  const mh = mask?.height || h
+  const same = mw === w && mh === h
+  for (let y = 0; y < h; y++) {
+    const my = same ? y : Math.min(mh - 1, Math.floor((y / h) * mh))
+    for (let x = 0; x < w; x++) {
+      const mx = same ? x : Math.min(mw - 1, Math.floor((x / w) * mw))
+      const m = mask ? mask.data[my * mw + mx] / 255 : 1
+      const i = (y * w + x) * 4
+      if (m >= 1) continue
+      for (let c = 0; c < 3; c++) d[i + c] = orig[i + c] + (d[i + c] - orig[i + c]) * m
+    }
+  }
+  return img
+}
+
 /** Brighten (amount > 0) or darken (amount < 0) towards the corners; amount -1..1. */
 export function devignette(img, amount = 0.5) {
   const { width: w, height: h, data: d } = img
@@ -782,6 +842,7 @@ export const ENHANCE_OPS = {
   cas: (img, p) => cas(img, p.sharpness ?? 0.5),
   hsl: (img, p) => hslAdjust(img, p.bands),
   devignette: (img, p) => devignette(img, p.amount ?? 0.5),
+  localAdjust: (img, p) => localAdjust(img, p),
   colorGrade: (img, p) => colorGrade(img, p.grade),
   lensDistortion: (img, p) => lensDistortion(img, p.amount ?? 0.3),
   defringe: (img, p) => defringe(img, p.strength ?? 1),

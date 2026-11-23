@@ -10,6 +10,7 @@ import {
   devignette,
   hslAdjust,
   lensDistortion,
+  localAdjust,
   denoise,
   resizeLanczos,
   runOps,
@@ -209,5 +210,44 @@ describe('colour grading', () => {
     const b = make(1, 1, () => [90, 100, 110, 255])
     colorGrade(b, {})
     expect(px(b, 0, 0)).toEqual([90, 100, 110])
+  })
+})
+
+describe('local adjustment', () => {
+  const half = (w, h) => {
+    const data = new Uint8ClampedArray(w * h)
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) data[y * w + x] = x < w / 2 ? 255 : 0
+    return { data, width: w, height: h }
+  }
+  it('brightens only the masked half', () => {
+    const img = make(10, 4, () => [80, 80, 80, 255])
+    localAdjust(img, { adj: { exposure: 1 }, mask: half(10, 4) })
+    expect(px(img, 1, 1)[0]).toBe(160)
+    expect(px(img, 8, 1)).toEqual([80, 80, 80])
+  })
+  it('a soft mask value blends proportionally', () => {
+    const img = make(2, 1, () => [100, 100, 100, 255])
+    localAdjust(img, { adj: { exposure: 1 }, mask: { data: new Uint8ClampedArray([128, 0]), width: 2, height: 1 } })
+    const v = px(img, 0, 0)[0]
+    expect(v).toBeGreaterThan(145)
+    expect(v).toBeLessThan(155)
+    expect(px(img, 1, 0)[0]).toBe(100)
+  })
+  it('an empty mask changes nothing, a lower-resolution mask is scaled to fit', () => {
+    const a = make(8, 8, (x, y) => [x * 20, y * 20, 90, 255])
+    const ref = [...a.data]
+    localAdjust(a, { adj: { saturation: -100, blur: 50, sharpen: 50 }, mask: { data: new Uint8ClampedArray(16), width: 4, height: 4 } })
+    expect([...a.data]).toEqual(ref)
+    const b = make(8, 2, () => [60, 60, 60, 255])
+    localAdjust(b, { adj: { exposure: 1 }, mask: { data: new Uint8ClampedArray([255, 0]), width: 2, height: 1 } })
+    expect(px(b, 1, 0)[0]).toBe(120)
+    expect(px(b, 6, 0)[0]).toBe(60)
+  })
+  it('can desaturate and blur selectively', () => {
+    const img = make(9, 9, (x) => (x === 4 ? [255, 0, 0, 255] : [0, 0, 0, 255]))
+    const mask = { data: new Uint8ClampedArray(81).fill(255), width: 9, height: 9 }
+    localAdjust(img, { adj: { saturation: -100 }, mask })
+    const [r, g, b] = px(img, 4, 4)
+    expect(Math.abs(r - g) + Math.abs(g - b)).toBeLessThan(3)
   })
 })

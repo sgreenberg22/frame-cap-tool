@@ -1,3 +1,4 @@
+import MaskDialog from './MaskDialog'
 import GradeWheel from './GradeWheel'
 import PerspectiveDialog from './PerspectiveDialog'
 import { detectStraighten } from '../../lib/autoStraighten'
@@ -132,6 +133,7 @@ export default function EditorModal({ shot, onClose, selected }) {
   const [hslBands, setHslBands] = useState({})
   const [perspOpen, setPerspOpen] = useState(false)
   const [grade, setGrade] = useState({})
+  const [maskOpen, setMaskOpen] = useState(false)
   const [hslKey, setHslKey] = useState('red')
   const [vigAmount, setVigAmount] = useState(40)
   const [distort, setDistort] = useState(30)
@@ -1864,6 +1866,28 @@ export default function EditorModal({ shot, onClose, selected }) {
                   <small className="muted">
                     Smart is instant and faithful. AI (ESRGAN) rebuilds texture and edges and runs on your graphics card; nothing is uploaded. Now {W} × {H}px.
                   </small>
+                </fieldset>
+                <fieldset>
+                  <legend>Local adjustments</legend>
+                  <button
+                    className="btn secondary sm"
+                    onClick={() => setMaskOpen(true)}
+                    disabled={!!busy}
+                    title="Change exposure, colour, blur or sharpness in just part of the photo"
+                  >
+                    Mask &amp; adjust part of the photo…
+                  </button>
+                  {maskOpen && doc && (
+                    <MaskDialog
+                      canvas={doc.base}
+                      onClose={() => setMaskOpen(false)}
+                      onApply={({ adj, mask }) => {
+                        setMaskOpen(false)
+                        runEnhanceQuiet([{ op: 'localAdjust', adj, mask }], 'Local adjustment')
+                      }}
+                    />
+                  )}
+                  <small className="muted">Paint, use a gradient, or pick a colour, then adjust only that area.</small>
                 </fieldset>
                 <fieldset>
                   <legend>Colour mixer</legend>
