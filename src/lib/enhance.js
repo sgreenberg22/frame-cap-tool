@@ -423,6 +423,168 @@ export function cas(img, sharpness = 0.5) {
   return img
 }
 
+// ---------- Colour bands (HSL) and lens corrections ----------
+
+export const HSL_BANDS = [
+  ['red', 'Red', 0],
+  ['orange', 'Orange', 30],
+  ['yellow', 'Yellow', 60],
+  ['green', 'Green', 120],
+  ['aqua', 'Aqua', 180],
+  ['blue', 'Blue', 240],
+  ['purple', 'Purple', 270],
+  ['magenta', 'Magenta', 300],
+]
+
+function rgbToHsl(r, g, b) {
+  const mx = Math.max(r, g, b)
+  const mn = Math.min(r, g, b)
+  const l = (mx + mn) / 2
+  if (mx === mn) return [0, 0, l]
+  const d = mx - mn
+  const sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+  let hue
+  if (mx === r) hue = (g - b) / d + (g < b ? 6 : 0)
+  else if (mx === g) hue = (b - r) / d + 2
+  else hue = (r - g) / d + 4
+  return [hue * 60, sat, l]
+}
+
+function hueToRgb(p, q, t) {
+  if (t < 0) t += 1
+  if (t > 1) t -= 1
+  if (t < 1 / 6) return p + (q - p) * 6 * t
+  if (t < 1 / 2) return q
+  if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+  return p
+}
+
+function hslToRgb(h, sat, l) {
+  if (sat === 0) return [l, l, l]
+  const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat
+  const p = 2 * l - q
+  const hk = h / 360
+  return [hueToRgb(p, q, hk + 1 / 3), hueToRgb(p, q, hk), hueToRgb(p, q, hk - 1 / 3)]
+}
+
+/**
+ * Per-colour hue / saturation / luminance. bands: { red: {h, s, l}, ... } with h in -100..100
+ * (up to 30° of hue), s and l in -100..100. Neighbouring bands blend smoothly.
+ */
+export function hslAdjust(img, bands) {
+  const active = HSL_BANDS.map(([key, , centre]) => ({ centre, ...(bands?.[key] || {}) })).filter((b) => b.h || b.s || b.l)
+  if (!active.length) return img
+  const d = img.data
+  for (let i = 0; i < d.length; i += 4) {
+    let [h, sat, l] = rgbToHsl(d[i] / 255, d[i + 1] / 255, d[i + 2] / 255)
+    if (sat < 0.02) continue
+    let dh = 0
+    let ds = 0
+    let dl = 0
+    for (const b of active) {
+      let dist = Math.abs(h - b.centre)
+      if (dist > 180) dist = 360 - dist
+      const w = dist >= 45 ? 0 : 0.5 + 0.5 * Math.cos((dist / 45) * Math.PI)
+      if (!w) continue
+      dh += (b.h || 0) * 0.3 * w
+      ds += ((b.s || 0) / 100) * w
+      dl += ((b.l || 0) / 100) * 0.5 * w
+    }
+    h = (h + dh + 360) % 360
+    sat = clamp01(sat * (1 + ds))
+    l = clamp01(l + dl * Math.min(1, sat * 2))
+    const [r, g, b] = hslToRgb(h, sat, l)
+    d[i] = r * 255
+    d[i + 1] = g * 255
+    d[i + 2] = b * 255
+  }
+  return img
+}
+
+/** Brighten (amount > 0) or darken (amount < 0) towards the corners; amount -1..1. */
+export function devignette(img, amount = 0.5) {
+  const { width: w, height: h, data: d } = img
+  const cx = (w - 1) / 2
+  const cy = (h - 1) / 2
+  const maxR2 = cx * cx + cy * cy || 1
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const r2 = ((x - cx) ** 2 + (y - cy) ** 2) / maxR2
+      const gain = 1 + amount * 1.2 * r2 * r2 + amount * 0.3 * r2
+      const i = (y * w + x) * 4
+      d[i] *= gain
+      d[i + 1] *= gain
+      d[i + 2] *= gain
+    }
+  }
+  return img
+}
+
+function sampleChannel(src, w, h, c, x, y) {
+  if (x < 0) x = 0
+  else if (x > w - 1) x = w - 1
+  if (y < 0) y = 0
+  else if (y > h - 1) y = h - 1
+  const x0 = x | 0
+  const y0 = y | 0
+  const x1 = Math.min(w - 1, x0 + 1)
+  const y1 = Math.min(h - 1, y0 + 1)
+  const fx = x - x0
+  const fy = y - y0
+  const a = src[(y0 * w + x0) * 4 + c] * (1 - fx) + src[(y0 * w + x1) * 4 + c] * fx
+  const b = src[(y1 * w + x0) * 4 + c] * (1 - fx) + src[(y1 * w + x1) * 4 + c] * fx
+  return a * (1 - fy) + b * fy
+}
+
+/**
+ * Lateral chromatic aberration (red/blue colour fringes toward the corners): find the radial
+ * scale that makes the red and blue edges line up with green, then resample those channels.
+ */
+export function defringe(img, strength = 1) {
+  const { width: w, height: h } = img
+  const src = new Uint8ClampedArray(img.data)
+  const cx = (w - 1) / 2
+  const cy = (h - 1) / 2
+  const step = Math.max(1, Math.round(Math.max(w, h) / 700))
+  const best = (c) => {
+    let bestS = 1
+    let bestErr = Infinity
+    for (let k = -8; k <= 8; k++) {
+      const sc = 1 + k * 0.0006
+      let err = 0
+      for (let y = 2; y < h - 2; y += step) {
+        for (let x = 2; x < w - 2; x += step) {
+          // Compare horizontal + vertical gradients of this channel (sampled at the scaled spot) with green's.
+          const sx = cx + (x - cx) * sc
+          const sy = cy + (y - cy) * sc
+          const gc = sampleChannel(src, w, h, c, sx + 1, sy) - sampleChannel(src, w, h, c, sx - 1, sy)
+          const gg = src[(y * w + x + 1) * 4 + 1] - src[(y * w + x - 1) * 4 + 1]
+          const vc = sampleChannel(src, w, h, c, sx, sy + 1) - sampleChannel(src, w, h, c, sx, sy - 1)
+          const vg = src[((y + 1) * w + x) * 4 + 1] - src[((y - 1) * w + x) * 4 + 1]
+          err += Math.abs(gc - gg) + Math.abs(vc - vg)
+        }
+      }
+      if (err < bestErr) {
+        bestErr = err
+        bestS = sc
+      }
+    }
+    return 1 + (bestS - 1) * strength
+  }
+  const sr = best(0)
+  const sb = best(2)
+  if (sr === 1 && sb === 1) return img
+  const d = img.data
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4
+      d[i] = sampleChannel(src, w, h, 0, cx + (x - cx) * sr, cy + (y - cy) * sr)
+      d[i + 2] = sampleChannel(src, w, h, 2, cx + (x - cx) * sb, cy + (y - cy) * sb)
+    }
+  }
+  return img
+}
+
 /** Smart upscale: Lanczos-3 followed by contrast-adaptive sharpening. */
 export function smartUpscale(img, scale = 2, sharpness = 0.45) {
   const out = resizeLanczos(img, img.width * scale, img.height * scale)
@@ -527,6 +689,9 @@ export const ENHANCE_OPS = {
   smartUpscale: (img, p) => smartUpscale(img, p.scale ?? 2, p.sharpness ?? 0.45),
   resize: (img, p) => resizeLanczos(img, p.width, p.height),
   cas: (img, p) => cas(img, p.sharpness ?? 0.5),
+  hsl: (img, p) => hslAdjust(img, p.bands),
+  devignette: (img, p) => devignette(img, p.amount ?? 0.5),
+  defringe: (img, p) => defringe(img, p.strength ?? 1),
 }
 
 /** Run a list of ops ({op, ...params}) in order. */

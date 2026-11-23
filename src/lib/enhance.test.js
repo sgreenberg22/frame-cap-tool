@@ -5,6 +5,9 @@ import {
   channelCdfs,
   colorMatch,
   deinterlace,
+  defringe,
+  devignette,
+  hslAdjust,
   denoise,
   resizeLanczos,
   runOps,
@@ -117,5 +120,43 @@ describe('colorMatch', () => {
     const diff = same.data.reduce((a, v, i) => a + Math.abs(v - img.data[i]), 0) / img.data.length
     expect(diff).toBeLessThan(6)
     expect([...colorMatch(img, channelCdfs(make(16, 16, () => [200, 10, 10, 255])), 0).data]).toEqual([...img.data])
+  })
+})
+
+describe('colour bands and lens fixes', () => {
+  it('HSL: desaturating only blues leaves reds alone', () => {
+    const img = make(2, 1, (x) => (x ? [200, 40, 40, 255] : [40, 40, 200, 255]))
+    hslAdjust(img, { blue: { s: -100 } })
+    const [r, g, b] = px(img, 0, 0)
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(25)
+    expect(px(img, 1, 0)).toEqual([200, 40, 40])
+  })
+  it('HSL: hue shift moves green toward yellow', () => {
+    const img = make(1, 1, () => [40, 200, 40, 255])
+    hslAdjust(img, { green: { h: -100 } })
+    const [r, g] = px(img, 0, 0)
+    expect(r).toBeGreaterThan(40)
+    expect(g).toBeGreaterThan(150)
+  })
+  it('devignette brightens corners but not the centre', () => {
+    const img = make(41, 41, () => [100, 100, 100, 255])
+    devignette(img, 0.6)
+    expect(px(img, 0, 0)[0]).toBeGreaterThan(130)
+    expect(px(img, 20, 20)[0]).toBe(100)
+  })
+  it('defringe realigns a red channel that was scaled outwards', () => {
+    const w = 120
+    const h = 80
+    const base = (x, y) => (Math.abs(x - 60) % 20 < 4 || Math.abs(y - 40) % 20 < 4 ? 230 : 30)
+    const sc = 1.004
+    const img = make(w, h, (x, y) => [base(60 + (x - 60) / sc, 40 + (y - 40) / sc), base(x, y), base(x, y), 255])
+    const err = (im) => {
+      let e = 0
+      for (let i = 0; i < w * h; i++) e += Math.abs(im.data[i * 4] - im.data[i * 4 + 1])
+      return e
+    }
+    const before = err(img)
+    defringe(img, 1)
+    expect(err(img)).toBeLessThan(before)
   })
 })

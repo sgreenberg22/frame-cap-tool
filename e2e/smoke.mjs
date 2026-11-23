@@ -233,6 +233,12 @@ try {
     },
   )
   ok('auto-straighten finds the tilted horizon')
+  await page.getByRole('tab', { name: 'Enhance' }).click()
+  await page.getByRole('button', { name: 'Blue', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove colour fringes' }).click()
+  await page.getByRole('button', { name: 'Apply colour mixer' }).isDisabled()
+  await page.getByText('Remove colour fringes').first().waitFor({ timeout: 15000 })
+  ok('colour mixer and lens fixes are available and run')
   await page.keyboard.press('Escape')
 
   errors.length ? fail('console errors:\n' + errors.join('\n')) : ok('no console errors')

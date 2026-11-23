@@ -36,7 +36,7 @@ import CurveEditor from '../CurveEditor'
 import { detectBars } from '../../lib/analysis'
 import UpscaleDialog from '../UpscaleDialog'
 import { enhanceCanvas, UPSCALE_CHOICES } from '../../lib/enhanceClient'
-import { ENHANCE_TOOLS } from '../../lib/enhance'
+import { ENHANCE_TOOLS, HSL_BANDS } from '../../lib/enhance'
 
 const TOOLS = [
   ['select', 'Select / move', 'V', '⬚'],
@@ -125,6 +125,9 @@ export default function EditorModal({ shot, onClose, selected }) {
   const [cursor, setCursor] = useState(null)
   const [showOriginal, setShowOriginal] = useState(false)
   const [straighten, setStraighten] = useState(0)
+  const [hslBands, setHslBands] = useState({})
+  const [hslKey, setHslKey] = useState('red')
+  const [vigAmount, setVigAmount] = useState(40)
   const [resize, setResize] = useState({ w: 0, h: 0, lock: true, quality: 'high' })
   const [pad, setPad] = useState({ px: 40, color: '#ffffff' })
   const [frame, setFrame] = useState(DEFAULT_FRAME)
@@ -1793,6 +1796,73 @@ export default function EditorModal({ shot, onClose, selected }) {
                   <small className="muted">
                     Smart is instant and faithful. AI (ESRGAN) rebuilds texture and edges and runs on your graphics card; nothing is uploaded. Now {W} × {H}px.
                   </small>
+                </fieldset>
+                <fieldset>
+                  <legend>Colour mixer</legend>
+                  <div className="enhance-grid">
+                    {HSL_BANDS.map(([key, label]) => (
+                      <button
+                        key={key}
+                        className={`btn secondary sm ${hslKey === key ? 'active' : ''}`}
+                        aria-pressed={hslKey === key}
+                        onClick={() => setHslKey(key)}
+                      >
+                        {label}
+                        {hslBands[key] && (hslBands[key].h || hslBands[key].s || hslBands[key].l) ? ' •' : ''}
+                      </button>
+                    ))}
+                  </div>
+                  {[
+                    ['h', 'Hue'],
+                    ['s', 'Saturation'],
+                    ['l', 'Brightness'],
+                  ].map(([k, label]) => (
+                    <Slider
+                      key={k}
+                      label={label}
+                      value={hslBands[hslKey]?.[k] || 0}
+                      min={-100}
+                      max={100}
+                      def={0}
+                      onChange={(v) => setHslBands((b) => ({ ...b, [hslKey]: { ...b[hslKey], [k]: v } }))}
+                    />
+                  ))}
+                  <div className="row gap-s">
+                    <button
+                      className="btn secondary sm"
+                      disabled={!!busy || !Object.values(hslBands).some((b) => b && (b.h || b.s || b.l))}
+                      onClick={() => {
+                        const bands = hslBands
+                        setHslBands({})
+                        runEnhanceQuiet([{ op: 'hsl', bands }], 'Colour mixer')
+                      }}
+                    >
+                      Apply colour mixer
+                    </button>
+                    <button className="btn secondary sm" onClick={() => setHslBands({})}>
+                      Reset
+                    </button>
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Lens fixes</legend>
+                  <button
+                    className="btn secondary sm"
+                    onClick={() => runEnhanceQuiet([{ op: 'defringe' }], 'Remove colour fringes')}
+                    disabled={!!busy}
+                    title="Fix red/blue edges towards the corners"
+                  >
+                    Remove colour fringes
+                  </button>
+                  <Slider label="Corner light" value={vigAmount} min={-100} max={100} unit="%" def={0} onChange={setVigAmount} />
+                  <button
+                    className="btn secondary sm"
+                    disabled={!!busy || !vigAmount}
+                    onClick={() => runEnhanceQuiet([{ op: 'devignette', amount: vigAmount / 100 }], vigAmount > 0 ? 'Lighten corners' : 'Darken corners')}
+                  >
+                    Apply corner light
+                  </button>
+                  <small className="muted">Positive lifts dark corners (vignetting); negative adds a vignette.</small>
                 </fieldset>
                 <button className="btn secondary sm" onClick={autoCropBars} disabled={!!busy} title="Trim black letterbox or pillarbox bars">
                   Auto-crop black bars
