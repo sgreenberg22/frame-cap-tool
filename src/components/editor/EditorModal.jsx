@@ -39,6 +39,7 @@ import CurveEditor from '../CurveEditor'
 import { detectBars } from '../../lib/analysis'
 import UpscaleDialog from '../UpscaleDialog'
 import { enhanceCanvas, UPSCALE_CHOICES } from '../../lib/enhanceClient'
+import { heal as healPixels } from '../../lib/heal'
 import { ENHANCE_TOOLS, HSL_BANDS } from '../../lib/enhance'
 
 const TOOLS = [
@@ -61,6 +62,7 @@ const TOOLS = [
   ['eyedropper', 'Eyedropper', 'I', '⌖'],
   ['region', 'Select region (copy/paste)', 'M', '⬒'],
   ['clone', 'Clone stamp (Alt-click sets the source)', 'J', '⎘'],
+  ['heal', 'Healing brush (paint over a blemish; Alt-click picks the source)', 'Y', '✚'],
   ['magic', 'Magic eraser (click a background to remove it)', 'W', '✦'],
   ['crop', 'Crop', 'C', '⌗'],
 ]
@@ -148,6 +150,7 @@ export default function EditorModal({ shot, onClose, selected }) {
   const [busy, setBusy] = useState('')
   const clipboard = useRef(null)
   const [cloneSrc, setCloneSrc] = useState(null)
+  const [healSrc, setHealSrc] = useState(null)
   const [strength, setStrength] = useState(1)
   const [upscaleOpen, setUpscaleOpen] = useState(false)
   const gesture = useRef(null)
@@ -491,6 +494,15 @@ export default function EditorModal({ shot, onClose, selected }) {
           setDraft({ ...base, type: 'stroke', mode: 'pen', color: '#ffffff', opacity: 0.35, size: opt.size * 3, hardness: 1, points: [[p.x, p.y, 0.5]] })
         }
         break
+      case 'heal':
+        if (e.altKey) {
+          setHealSrc({ x: p.x, y: p.y })
+          toast('Source set. Paint over the blemish to heal it from there.')
+        } else {
+          gesture.current = { type: 'heal', last: p, src: healSrc ? { dx: healSrc.x - p.x, dy: healSrc.y - p.y } : null }
+          setDraft({ ...base, type: 'stroke', mode: 'pen', color: '#ff3b6b', opacity: 0.4, size: opt.size, hardness: 1, points: [[p.x, p.y, 0.5]] })
+        }
+        break
       case 'magic': {
         const mask = floodFill(displayRef.current, p.x, p.y, '#000000', opt.tolerance)
         if (mask) {
@@ -552,7 +564,7 @@ export default function EditorModal({ shot, onClose, selected }) {
       const vp = viewportRef.current
       vp.scrollLeft = g.sl - (e.clientX - g.x)
       vp.scrollTop = g.st - (e.clientY - g.y)
-    } else if (g.type === 'clone') {
+    } else if (g.type === 'clone' || g.type === 'heal') {
       g.last = p
       setDraft((d) => d && { ...d, points: [...d.points, [p.x, p.y, 0.5]] })
     } else if (g.type === 'stroke') {
@@ -683,6 +695,9 @@ export default function EditorModal({ shot, onClose, selected }) {
       const patch = clonePatch(srcCanvas, draft.points, draft.size, g.dx, g.dy, opt.hardness < 1 ? opt.hardness : 0.6)
       commit('Clone stamp', { objects: [...doc.objects, { id: uid(), type: 'image', ...patch, opacity: opt.opacity }] })
       setDraft(null)
+    } else if (g.type === 'heal' && draft) {
+      healStroke(draft, g.src)
+      setDraft(null)
     } else if (g.type === 'stroke' && draft) {
       commit(tool === 'eraser' ? 'Erase' : tool === 'highlighter' ? 'Highlight' : 'Draw', { objects: [...doc.objects, draft] })
       setDraft(null)
@@ -693,6 +708,47 @@ export default function EditorModal({ shot, onClose, selected }) {
     } else if ((g.type === 'move' || g.type === 'scale') && g.moved) {
       commit(g.type === 'move' ? 'Move' : 'Resize object', { objects: doc.objects })
     }
+  }
+
+  /** Heal under a painted stroke: texture from a nearby area, colour matched to the surroundings. */
+  function healStroke(stroke, src) {
+    const W0 = doc.base.width
+    const H0 = doc.base.height
+    const maskCanvas = blankCanvas(W0, H0)
+    const mctx = maskCanvas.getContext('2d', { willReadFrequently: true })
+    drawObject(mctx, { type: 'stroke', mode: 'pen', color: '#000', size: stroke.size, opacity: 1, hardness: 0.85, points: stroke.points })
+    const md = mctx.getImageData(0, 0, W0, H0).data
+    const mask = new Uint8Array(W0 * H0)
+    let x0 = W0
+    let x1 = 0
+    let y0 = H0
+    let y1 = 0
+    for (let i = 0; i < mask.length; i++) {
+      mask[i] = md[i * 4 + 3]
+      if (mask[i]) {
+        const x = i % W0
+        const y = (i / W0) | 0
+        if (x < x0) x0 = x
+        if (x > x1) x1 = x
+        if (y < y0) y0 = y
+        if (y > y1) y1 = y
+      }
+    }
+    if (x1 < x0) return
+    if (x1 - x0 > 500 || y1 - y0 > 500) return toast('That area is too big to heal in one go. Use smaller strokes.', { kind: 'warn' })
+    const flat = blankCanvas(W0, H0)
+    composite(flat.getContext('2d'), adjusted, doc.objects)
+    const img = flat.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W0, H0)
+    let patch
+    try {
+      patch = healPixels(img, mask, src)
+    } catch (err) {
+      return toast(err.message, { kind: 'warn' })
+    }
+    if (!patch) return
+    const pc = blankCanvas(patch.w, patch.h)
+    pc.getContext('2d').putImageData(new ImageData(patch.data, patch.w, patch.h), 0, 0)
+    commit('Heal', { objects: [...doc.objects, { id: uid(), type: 'image', canvas: pc, x: patch.x, y: patch.y, w: patch.w, h: patch.h, opacity: 1 }] })
   }
 
   function finishPolygon() {
@@ -1255,6 +1311,13 @@ export default function EditorModal({ shot, onClose, selected }) {
             <span>{TOOLS.find((t) => t[0] === tool)?.[1]}</span>
             {tool === 'polygon' && <span>Click to add points, double-click or Enter to finish</span>}
             {tool === 'crop' && <span>Drag handles, Enter to apply</span>}
+            {tool === 'heal' && (
+              <span>
+                {healSrc
+                  ? 'Paint over a blemish · Alt-click to pick another source'
+                  : 'Paint over a blemish. It finds a matching area itself, or Alt-click to choose one'}
+              </span>
+            )}
             {tool === 'clone' && <span>{cloneSrc ? 'Paint to copy · Alt-click to pick a new source' : 'Click the area to copy from'}</span>}
             {tool === 'magic' && <span>Click a flat background to make it transparent (save as PNG or WebP)</span>}
             {tool === 'region' && <span>Drag a region, then Ctrl/⌘+C and Ctrl/⌘+V</span>}

@@ -310,6 +310,36 @@ try {
     await page.getByRole('slider', { name: 'Before and after divider' }).waitFor({ timeout: 3000 })
     ok('before / after split view shows a divider')
   }
+  // Healing brush removes a dark blemish from a textured photo
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Discard', exact: true }).click({ timeout: 5000 })
+  await page.locator('.modal').waitFor({ state: 'detached', timeout: 5000 })
+  await page.locator('#photoInput').setInputFiles('e2e/fixtures/blemish.png')
+  await page.getByText('Edit blemish.png').waitFor({ timeout: 10000 })
+  await page.locator('[title^="Healing brush"]').click()
+  const ov = await page.locator('canvas.ink-overlay').boundingBox()
+  const spot = { x: ov.x + ov.width * 0.5, y: ov.y + ov.height * 0.5 }
+  const lumaAt = () =>
+    page.evaluate(() => {
+      const c = document.querySelector('canvas.editor-canvas')
+      const d = c.getContext('2d').getImageData(Math.round(c.width / 2), Math.round(c.height / 2), 1, 1).data
+      return (d[0] + d[1] + d[2]) / 3
+    })
+  if ((await lumaAt()) > 60) throw new Error('fixture spot should start dark')
+  await page.mouse.move(spot.x - 4, spot.y)
+  await page.mouse.down()
+  await page.mouse.move(spot.x + 4, spot.y, { steps: 4 })
+  await page.mouse.up()
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('canvas.editor-canvas')
+      const d = c.getContext('2d').getImageData(Math.round(c.width / 2), Math.round(c.height / 2), 1, 1).data
+      return (d[0] + d[1] + d[2]) / 3 > 60
+    },
+    null,
+    { timeout: 8000 },
+  )
+  ok('healing brush removes a blemish')
   await page.keyboard.press('Escape')
 
   errors.length ? fail('console errors:\n' + errors.join('\n')) : ok('no console errors')

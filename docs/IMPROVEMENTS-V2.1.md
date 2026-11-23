@@ -1,7 +1,7 @@
 # v2.1 improvement status
 
 Status of the 120 items in [V3-IMPROVEMENT-PROMPT.md](V3-IMPROVEMENT-PROMPT.md).
-**20 done · 8 partial · 92 not started.** Also added beyond the list: a standalone Photo page with HEIC and Live Photo import, and a before/after split view.
+**21 done · 8 partial · 91 not started.** Also added beyond the list: a standalone Photo page with HEIC and Live Photo import, and a before/after split view.
 
 | #   | Item                                                  | Status  | Notes                                                                                                                                                                  |
 | --- | ----------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -22,6 +22,7 @@ Status of the 120 items in [V3-IMPROVEMENT-PROMPT.md](V3-IMPROVEMENT-PROMPT.md).
 | 67  | Auto-crop black bars                                  | Done    | Button in the editor's Enhance tab (the Studio already had a crop-region version).                                                                                     |
 | 68  | Auto-straighten using horizon/line detection          | Done    | Transform tab; suggests an angle for you to check, then Apply.                                                                                                         |
 | 36  | Brush, gradient and colour-range masks                | Partial | Brush, linear, circular and similar-colour masks for a fixed set of adjustments. No luminosity masks, and the mask is baked in (no re-editable layer).                 |
+| 37  | Healing brush distinct from clone stamp               | Done    | Texture from a matching area, colour-matched. Not a full content-aware fill: large areas need several strokes.                                                         |
 | 41  | Perspective correction with draggable corners         | Done    | Manual four-corner; no automatic edge detection.                                                                                                                       |
 | 42  | Vignette, chromatic-aberration, lens-distortion fixes | Done    | Colour fringes, corner light, barrel/pincushion; manual, no lens profiles.                                                                                             |
 | 44  | Grading wheels and HSL per-colour mixer               | Done    | Three tone-range wheels plus an 8-band mixer.                                                                                                                          |
