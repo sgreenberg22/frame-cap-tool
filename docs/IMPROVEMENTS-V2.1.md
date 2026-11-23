@@ -1,7 +1,7 @@
 # v2.1 improvement status
 
 Status of the 120 items in [V3-IMPROVEMENT-PROMPT.md](V3-IMPROVEMENT-PROMPT.md).
-**18 done · 6 partial · 96 not started.** Passes so far covered fullscreen, a few cross-cutting items and upscaling; the rest of the list is still open.
+**19 done · 6 partial · 95 not started.** Also added beyond the list: a standalone Photo page with HEIC and Live Photo import. Passes so far covered fullscreen, a few cross-cutting items and upscaling; the rest of the list is still open.
 
 | #   | Item                                             | Status  | Notes                                                                                                                                                                  |
 | --- | ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -20,6 +20,7 @@ Status of the 120 items in [V3-IMPROVEMENT-PROMPT.md](V3-IMPROVEMENT-PROMPT.md).
 | 62  | Prefer fast backend and show which one ran       | Partial | Shows the TensorFlow.js backend after an AI run. No WebGPU backend, no benchmark.                                                                                      |
 | 66  | Match colour between frames                      | Done    | Gallery → Enhance → Match colour to first selected (histogram matching, per channel).                                                                                  |
 | 67  | Auto-crop black bars                             | Done    | Button in the editor's Enhance tab (the Studio already had a crop-region version).                                                                                     |
+| 68  | Auto-straighten using horizon/line detection     | Done    | Transform tab; suggests an angle for you to check, then Apply.                                                                                                         |
 | 74  | Before/after preview for enhance tools           | Partial | Upscale dialog previews a centre crop with a split slider. Other enhance tools have no preview yet.                                                                    |
 | 75  | Enhance presets by content type                  | Partial | Upscale has Photo / Screenshot or UI / Old or noisy presets. No user-saved presets, no chains for other tools.                                                         |
 | 87  | Split at scene changes                           | Done    | Scans the video and splits the clip list at each cut; sensitivity slider and cancel.                                                                                   |

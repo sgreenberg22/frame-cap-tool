@@ -150,16 +150,17 @@ export function AppProvider({ children }) {
         const blob = await canvasToBlob(it.canvas, type, q)
         const thumbBlob = await makeThumb(it.canvas)
         const seq = ++seqRef.current
-        const name =
-          applyNameTemplate(settings.nameTemplate, {
-            video: (it.video || 'frame').replace(/\.[^.]+$/, ''),
-            index: String(seq).padStart(3, '0'),
-            timecode: fileTimecode(it.time || 0),
-            time: (it.time || 0).toFixed(3),
-            date: new Date().toISOString().slice(0, 10),
-          }) +
-          '.' +
-          extFor(type)
+        const name = it.name
+          ? it.name.replace(/\.[^.]+$/, '') + '.' + extFor(type)
+          : applyNameTemplate(settings.nameTemplate, {
+              video: (it.video || 'frame').replace(/\.[^.]+$/, ''),
+              index: String(seq).padStart(3, '0'),
+              timecode: fileTimecode(it.time || 0),
+              time: (it.time || 0).toFixed(3),
+              date: new Date().toISOString().slice(0, 10),
+            }) +
+            '.' +
+            extFor(type)
         const rec = {
           id: uid(),
           seq,
@@ -179,6 +180,7 @@ export function AppProvider({ children }) {
           tags: [],
           filters: it.filters || null,
           delay: it.delay || null,
+          origin: it.origin || '',
           createdAt: Date.now(),
         }
         created.push(withUrls(rec))

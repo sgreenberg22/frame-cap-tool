@@ -4,6 +4,7 @@ const STRINGS = {
   en: {
     'nav.home': 'Home',
     'nav.studio': 'Studio',
+    'nav.photo': 'Photo',
     'nav.help': 'Help',
     'nav.settings': 'Settings',
     'nav.about': 'About',
@@ -29,6 +30,7 @@ const STRINGS = {
   es: {
     'nav.home': 'Inicio',
     'nav.studio': 'Estudio',
+    'nav.photo': 'Foto',
     'nav.help': 'Ayuda',
     'nav.settings': 'Ajustes',
     'nav.about': 'Acerca de',

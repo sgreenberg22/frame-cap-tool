@@ -30,6 +30,7 @@ function Header() {
   const links = [
     ['/', t('nav.home')],
     ['/studio', t('nav.studio')],
+    ['/photo', t('nav.photo')],
     ['/help', t('nav.help')],
     ['/settings', t('nav.settings')],
     ['/about', t('nav.about')],

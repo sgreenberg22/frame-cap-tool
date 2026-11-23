@@ -1,3 +1,4 @@
+import { detectStraighten } from '../../lib/autoStraighten'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Modal from '../Modal'
 import Slider from '../Slider'
@@ -768,6 +769,13 @@ export default function EditorModal({ shot, onClose, selected }) {
     setResize((r) => ({ ...r, w: g.base.width, h: g.base.height }))
     setSelId(null)
     requestAnimationFrame(() => fitZoom(g.base))
+  }
+  /** Detect a tilted horizon / vertical lines and preload the straighten slider. */
+  function autoStraighten() {
+    const a = detectStraighten(doc.base)
+    if (a == null) return toast('Could not find a clear horizon or vertical lines to level')
+    setStraighten(Math.max(-45, Math.min(45, a)))
+    toast(`Suggested ${a > 0 ? '+' : ''}${a}°. Check the preview, then Apply.`)
   }
   /** Trim letterbox/pillarbox black bars found on the current image. */
   function autoCropBars() {
@@ -1564,6 +1572,9 @@ export default function EditorModal({ shot, onClose, selected }) {
                 </div>
                 <fieldset>
                   <legend>Straighten</legend>
+                  <button className="btn secondary sm" onClick={autoStraighten} disabled={!!busy} title="Find the horizon or dominant lines and level them">
+                    Auto-straighten
+                  </button>
                   <Slider label="Angle" value={straighten} min={-45} max={45} step={0.1} unit="°" def={0} onChange={setStraighten} />
                   <button
                     className="btn secondary sm"

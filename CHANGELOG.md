@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Photo editor page** (`/photo`, "Photo" in the menu). Open a picture straight in the editor with no video: choose, drop or paste JPG, PNG, WebP, GIF, AVIF or **iPhone HEIC** (decoded on-device with a lazy, self-hosted libheif build; the CSP gained `'wasm-unsafe-eval'` for it). Select a **Live Photo's** still and its `.MOV` together and they are paired; the motion clip can be opened in the Studio from the photo card. A lone video dropped there opens in the Studio.
+- **Editor:** Auto-straighten (Transform tab). Edge pixels vote for the rotation that lines them up, it pre-fills the Straighten slider so you can check it before applying.
+
 - **Auto cuts** (Cut & edit): remove silences and split at scene changes.
 - **Frames:** sort by sharpness with a score badge, select blurry frames, and match the colour of other frames to a reference frame.
 - **Editor:** auto-crop black bars.

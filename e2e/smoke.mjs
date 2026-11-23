@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 // End-to-end smoke test: build first (npm run build), then `npm run e2e`.
 // Starts `vite preview`, generates the sample clip in-browser, then walks the whole workflow:
 // cut + export video, capture, batch, enhance/upscale, edit, export a GIF, and reload persistence.
@@ -208,6 +209,31 @@ try {
     })
   await page.getByRole('alert').filter({ hasText: 'HEVC' }).waitFor({ timeout: 10000 })
   ok('unplayable video shows an explanation')
+
+  // Standalone photo editor: HEIC + Live Photo pair, auto-straighten
+  await page.goto(BASE + '/photo')
+  await page.locator('#photoInput').setInputFiles([
+    { name: 'sample.heic', mimeType: 'image/heic', buffer: readFileSync('e2e/fixtures/sample.heic') },
+    { name: 'sample.mov', mimeType: 'video/quicktime', buffer: Buffer.from('motion') },
+  ])
+  await page.getByRole('dialog').or(page.locator('.modal')).first().waitFor({ timeout: 30000 })
+  await page.getByText('Edit sample.jpg').waitFor({ timeout: 5000 })
+  await page.keyboard.press('Escape')
+  await page.locator('.photo-item .live-badge').waitFor({ timeout: 5000 })
+  ok('photo page opens HEIC and pairs the Live Photo motion clip')
+  await page.locator('#photoInput').setInputFiles('e2e/fixtures/tilted.jpg')
+  await page.getByText('Edit tilted.jpg').waitFor({ timeout: 10000 })
+  await page.getByRole('tab', { name: 'Transform' }).click()
+  await page.getByRole('button', { name: 'Auto-straighten' }).click()
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('input[type=range]')].some((i) => Math.abs(parseFloat(i.value) + 5) < 1.5 && i.min === '-45'),
+    null,
+    {
+      timeout: 8000,
+    },
+  )
+  ok('auto-straighten finds the tilted horizon')
+  await page.keyboard.press('Escape')
 
   errors.length ? fail('console errors:\n' + errors.join('\n')) : ok('no console errors')
 } catch (e) {

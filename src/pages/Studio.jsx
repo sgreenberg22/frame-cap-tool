@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { takePendingVideo } from '../lib/handoff'
 import Player from '../components/Player'
 import Timeline from '../components/Timeline'
 import Transport from '../components/Transport'
@@ -230,6 +231,13 @@ export default function Studio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [openVideoFile, importImages, source],
   )
+
+  // A video handed over from the Photo page (e.g. the motion part of a Live Photo).
+  useEffect(() => {
+    const f = takePendingVideo()
+    if (f) openVideoFile(f)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function pickFile() {
     if (window.showOpenFilePicker) {

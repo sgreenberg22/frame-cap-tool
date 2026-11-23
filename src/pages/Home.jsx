@@ -37,6 +37,9 @@ export default function Home() {
               Continue with {shots.length} saved frame{shots.length === 1 ? '' : 's'}
             </Link>
           )}
+          <Link to="/photo" className="btn secondary lg">
+            Edit a photo
+          </Link>
           <Link to="/help" className="btn secondary lg">
             How it works
           </Link>

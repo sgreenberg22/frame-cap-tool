@@ -7,6 +7,7 @@ import { AppProvider } from './state/store'
 import './styles.css'
 
 const Studio = lazy(() => import('./pages/Studio'))
+const Photo = lazy(() => import('./pages/Photo'))
 const Help = lazy(() => import('./pages/Help'))
 const Settings = lazy(() => import('./pages/Settings'))
 const About = lazy(() => import('./pages/About'))
@@ -28,6 +29,7 @@ createRoot(document.getElementById('root')).render(
             <Route element={<App />}>
               <Route path="/" element={<Home />} />
               <Route path="/studio" element={<Studio />} />
+              <Route path="/photo" element={<Photo />} />
               <Route path="/analysis" element={<Studio />} />
               <Route path="/help" element={<Help />} />
               <Route path="/settings" element={<Settings />} />
